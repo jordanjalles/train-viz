@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Masked crop cells</title>
+<style>
+  body { margin: 0; padding: 20px 16px 40px; background: #090c12; color: #e8ecf3; font: 15px/1.5 system-ui, sans-serif; }
+  main { max-width: 860px; margin: 0 auto; }
+  h1 { font-size: 20px; margin: 0 0 6px; }
+  h2 { font-size: 16px; margin: 28px 0 4px; }
+  p, li { color: #a7b0c0; }
+  code { color: #e8ecf3; }
+  button { font: inherit; font-weight: 600; padding: 10px 20px; border-radius: 999px; border: 0; background: hsl(192 86% 64%); color: #06222a; cursor: pointer; min-height: 44px; }
+  .msg { margin-left: 12px; color: hsl(150 60% 55%); }
+  pre { margin-top: 12px; padding: 14px; background: #0f141d; border: 1px solid rgba(255,255,255,0.13); border-radius: 12px; overflow-x: auto; font: 12.5px/1.45 ui-monospace, Menlo, Consolas, monospace; }
+  a { color: hsl(192 86% 64%); }
+</style>
+</head>
+<body>
+<main>
+<h1>Masked, overhanging crops for ImageNet-AE-selfteach</h1>
+<p>The same crop code as the Spark run <code>…maskcrop_ww03</code>, checked
+identical. Do these steps between runs.</p>
+<ol>
+  <li>Replace the whole crop-definitions cell (it starts with
+  <code>#ImageNet view / crop definitions</code>) with block 1.</li>
+  <li>In the train-step cell, replace <code>def crop_scale(...)</code> with
+  block 2. Leave the rest of that cell as it is.</li>
+  <li>Restart the kernel and run the cells in order up to the training loop.
+  The data loaders must be rebuilt, so re-running only the two edited cells
+  is not enough.</li>
+</ol>
+
+<section>
+<h2>Block 1: crop-definitions cell (replace the whole cell)</h2>
+<button>Copy block 1</button><span class="msg" role="status"></span>
+<pre>#ImageNet view / crop definitions (masked, overhanging crops)
+
+import numpy as np
+import torch
+import torch.nn.functional as F
+from PIL import Image
+
+# Largest share of the crop width that may lie off the image, per
+# axis. 0.5: the crop centre is uniform over the image.
+CROP_OVERHANG = 0.5
+# Border pixels extend this far past their centre (in image pixels)
+# before the crop turns black. 0.5 = the outer pixel&#x27;s own edge.
+CROP_EDGE_PIXELS = 0.5
+
+
+def crop_inside_mask(grid, image_size):
+    # True where a sample lies on the image.
+    # grid (B, H, W, 2) -&gt; mask (B, 1, H, W)
+    limit = 1 + 2 * CROP_EDGE_PIXELS / (image_size - 1)
+    return (grid.abs() &lt;= limit).all(-1)[:, None]
+
+
+def make_crop_grid_for_size(
+    batch_size,
+    height,
+    width,
+    device,
+    crop_min=0.2,
+    crop_max=0.9,
+    output_size=None,
+):
+    if not 0 &lt; crop_min &lt;= crop_max &lt;= 1:
+        raise ValueError(&quot;Require 0 &lt; crop_min &lt;= crop_max &lt;= 1.&quot;)
+
+    size = height if output_size is None else int(output_size)
+
+    bounds = torch.ones(2, device=device, dtype=torch.float32)
+
+    fraction = torch.empty(
+        batch_size, 1, device=device, dtype=torch.float32,
+    ).uniform_(crop_min, crop_max)
+
+    half_span = fraction * bounds
+
+    # Up to CROP_OVERHANG of the crop width may lie off the image.
+    center_limit = bounds - half_span * (1 - 2 * CROP_OVERHANG)
+    center = (
+        torch.rand(batch_size, 2, device=device) * 2 - 1
+    ) * center_limit
+
+    axis = torch.linspace(-1, 1, size, device=device)
+    yy, xx = torch.meshgrid(axis, axis, indexing=&quot;ij&quot;)
+    base = torch.stack((xx, yy), dim=-1)
+
+    return (
+        base[None] * half_span[:, None, None, :]
+        + center[:, None, None, :]
+    )
+
+
+def antialiased_source_crop(source, grid):
+    H, W = source.shape[-2:]
+    out_h, out_w = grid.shape[1:3]
+
+    step_x = (
+        (grid[0, 0, -1, 0] - grid[0, 0, 0, 0]).abs().item()
+        * (W - 1) / (2 * (out_w - 1))
+    )
+    step_y = (
+        (grid[0, -1, 0, 1] - grid[0, 0, 0, 1]).abs().item()
+        * (H - 1) / (2 * (out_h - 1))
+    )
+
+    new_h = min(H, max(2, int(np.ceil(H / max(step_y, 1)))))
+    new_w = min(W, max(2, int(np.ceil(W / max(step_x, 1)))))
+
+    filtered = source
+    if (new_h, new_w) != (H, W):
+        filtered = F.interpolate(
+            source,
+            size=(new_h, new_w),
+            mode=&quot;bilinear&quot;,
+            align_corners=False,
+            antialias=True,
+        )
+
+    adjusted_grid = grid * grid.new_tensor([
+        (W - 1) / W,
+        (H - 1) / H,
+    ])
+
+    crop = F.grid_sample(
+        filtered,
+        adjusted_grid,
+        mode=&quot;bilinear&quot;,
+        padding_mode=&quot;border&quot;,
+        align_corners=False,
+    )
+
+    # Border clamp extends the outer pixels; beyond them, black.
+    mask = crop_inside_mask(grid, out_h).to(crop.dtype)
+    return crop * mask
+
+class ImageNetViews:
+    def __init__(
+        self,
+        image_size,
+        crop_min=0.2,
+        crop_max=0.9,
+    ):
+        self.image_size = int(image_size)
+        self.crop_min = float(crop_min)
+        self.crop_max = float(crop_max)
+
+    def __call__(self, image):
+        source = torch.from_numpy(
+            np.array(image.convert(&quot;RGB&quot;), copy=True)
+        ).permute(2, 0, 1).float().div_(255).unsqueeze(0)
+
+        full = F.interpolate(
+            source,
+            size=(self.image_size, self.image_size),
+            mode=&quot;bilinear&quot;,
+            align_corners=True,
+            antialias=True,
+        )[0]
+
+        grid = make_crop_grid_for_size(
+            batch_size=1,
+            height=self.image_size,
+            width=self.image_size,
+            device=source.device,
+            crop_min=self.crop_min,
+            crop_max=self.crop_max,
+            output_size=self.image_size,
+        )
+
+        crop_real = antialiased_source_crop(source, grid)[0]
+
+        return full, {
+            &quot;crop_real&quot;: crop_real,
+            &quot;crop_grid&quot;: grid[0],
+        }
+</pre>
+</section>
+
+<section>
+<h2>Block 2: <code>crop_scale</code> in the train-step cell</h2>
+<button>Copy block 2</button><span class="msg" role="status"></span>
+<pre>def crop_scale(images, grid):
+    # FP32 coordinates avoid BF16 rounding of crop positions.
+    with torch.autocast(device_type=&quot;cuda&quot;, enabled=False):
+        crops = F.grid_sample(
+            images.float(), grid, mode=&quot;bilinear&quot;,
+            padding_mode=&quot;border&quot;, align_corners=True,
+        )
+    # Same black mask as the dataset crop.
+    mask = crop_inside_mask(grid, images.shape[-1])
+    return crops * mask.to(crops.dtype)
+</pre>
+</section>
+<section>
+<h2>Block 3 (optional): test every 2k steps up to step 50k</h2>
+<p>In the training-loop cell, paste this directly below the
+<code>readout.update(...)</code> call, at the same indentation (8 spaces).
+Each test also saves a reconstruction image. With the
+<a href="/sink.html">current sink cell</a>, each test also saves a Latent
+view snapshot. It takes effect the next time you run the training-loop cell.</p>
+<button>Copy block 3</button><span class="msg" role="status"></span>
+<pre>        # Test eval every 2k steps up to 50k (epoch ends still eval).
+        _step = len(logs[&quot;clean_term&quot;])
+        if _step &lt;= 50_000 and _step % 2_000 == 0:
+            _ev = evaluate_multiview(max_batches=eval_batches)
+            print(f&quot;  eval @ {_step}: &quot; + &quot; | &quot;.join(
+                f&quot;{k} {v:.5f}&quot; for k, v in _ev.items()), flush=True)
+            save_reconstruction_snapshot(masked=False)
+</pre>
+</section>
+<p><a href="/">Back to train-viz</a></p>
+</main>
+<script>
+  for (const section of document.querySelectorAll('section')) {
+    const pre = section.querySelector('pre');
+    const msg = section.querySelector('.msg');
+    section.querySelector('button').addEventListener('click', async () => {
+      const code = pre.textContent;
+      try { await navigator.clipboard.writeText(code); msg.textContent = 'Copied ' + (code.split('\n').length - 1) + ' lines'; }
+      catch (e) {
+        const r = document.createRange(); r.selectNodeContents(pre);
+        const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+        msg.textContent = 'Selected: press Ctrl+C (or Cmd+C) to copy';
+      }
+    });
+  }
+</script>
+</body>
+</html>

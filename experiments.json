@@ -1,0 +1,5173 @@
+{
+ "version": 1,
+ "experiments": [
+  {
+   "id": "jepa-gen",
+   "title": "Self-teaching encoder-generator (JEPA encoder teaches G)",
+   "created": "2026-11-11",
+   "status": "done",
+   "question": "Can an encoder trained only on view alignment + a regularizer teach a generator through its own judgment, without pixel loss, and does the generator exploit the judge? Arms: direct z Wasserstein vs LeJEPA projector + SIGReg. Notes: imagenet-selfteach/jepagen/README.md",
+   "falsifier": null,
+   "primary_metric": "fid_ema",
+   "score_steps": [],
+   "baseline": null,
+   "runs": [
+    {
+     "run": "shared/2026-11-11_140324_544532_jg-wass-s44",
+     "label": "wasserstein arm",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/2026-11-11_185745_670451_jg-sigreg-s44",
+     "label": "sigreg arm",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/2026-11-12_000057_227381_jg-wassproj-s44",
+     "label": "wassproj arm",
+     "role": "treatment",
+     "note": null
+    }
+   ],
+   "verdict": "No arm teaches a generator. All three G exploit the judge: own-judge 0.06-0.11, baseline-AE judge 0.92-1.09 (1 = random image). Previews: periodic textures with each image's palette and a faint layout. Encoders did not collapse (z_rank 10.6-18.5). Best on the outside judge: wassproj 0.92, sigreg 0.93, wass 1.09.",
+   "sources": [
+    "scripts/experiment_add.py"
+   ],
+   "planned_runs": [
+    "jg-wass-s44",
+    "jg-sigreg-s44"
+   ]
+  },
+  {
+   "id": "lejepa-wreg",
+   "title": "Projector-free Wasserstein vs LeJEPA (Imagenette)",
+   "created": "2026-11-09",
+   "status": "running",
+   "question": "Can the tuned 4-term Wasserstein regularizer train useful ViT-S/8 features with no projector (B), matching LeJEPA with its MLP+BN projector (A)? C = SIGReg with no projector. Score: frozen linear probe on native 384-d features, official val, 3 paired seeds.",
+   "falsifier": "B below A by more than the seed spread (mean ± sd over 3 paired seeds) at the final step",
+   "primary_metric": "probe_err",
+   "score_steps": [],
+   "baseline": null,
+   "runs": [
+    {
+     "run": "shared/lejepa-wreg-tune-B-lam0.02-s0",
+     "label": "B λ0.02 s0 tune",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/lejepa-wreg-tune-B-lam0.9-s0",
+     "label": "B λ0.9 s0 tune",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/lejepa-wreg-tune-B-lam0.99-s0",
+     "label": "B λ0.99 s0 tune",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/lejepa-wreg-tune-A-lam0.02-s0",
+     "label": "A λ0.02 s0 tune",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/lejepa-wreg-tune-C-lam0.02-s0",
+     "label": "C λ0.02 s0 tune",
+     "role": "control",
+     "note": null
+    },
+    {
+     "run": "shared/lejepa-wreg-tune-B-lam0.995-s0",
+     "label": "B λ0.995 s0 tune",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/lejepa-wreg-tune-B-lam0.999-s0",
+     "label": "B λ0.999 s0 tune",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/lejepa-wreg-tune-B-lam0.9995-s0",
+     "label": "B λ0.9995 s0 tune",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/lejepa-wreg-tune-B-lam0.9999-s0",
+     "label": "B λ0.9999 s0 tune",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/lejepa-wreg-tune-A-wasserstein-lam0.999-s0",
+     "label": "A λ0.999 s0 tune [reg wasserstein]",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/lejepa-wreg-tune-B-nosquare-lam0.999-s0",
+     "label": "B λ0.999 s0 tune [outer square 0]",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/lejepa-wreg-tune-B-layernorm-lam0.999-s0",
+     "label": "B λ0.999 s0 tune [final LayerNorm 1]",
+     "role": "treatment",
+     "note": null
+    }
+   ],
+   "verdict": null,
+   "sources": [
+    "scripts/experiment_add.py"
+   ]
+  },
+  {
+   "id": "ae-reg-power",
+   "title": "AE regularizer strength and power (p 1 vs 2)",
+   "created": "2026-10-29",
+   "status": "done",
+   "question": "Does the Gaussian (Wasserstein) regularizer disrupt self-teaching AE convergence through latent churn, and does squaring it, λ r_ref/p (r/r_ref)^p with p 2, widen the usable λ range? Write-up: /regx-power.html",
+   "falsifier": null,
+   "primary_metric": "test_clean",
+   "score_steps": [
+    20000,
+    60000
+   ],
+   "baseline": "shared/2026-10-29_144110_169010_ref-s44",
+   "pages": [
+    {
+     "title": "Write-up: past the noise floor a stronger regularizer adds only churn; p = 2 does not widen the range",
+     "href": "/regx-power.html"
+    }
+   ],
+   "runs": [
+    {
+     "run": "shared/2026-10-29_144110_169010_ref-s44",
+     "label": "p1 λ0.05 s44 20k",
+     "role": "baseline",
+     "note": null
+    },
+    {
+     "run": "shared/2026-10-29_162027_853305_p1-lam0.158-s44",
+     "label": "p1 λ0.158 s44 20k",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/2026-10-29_175802_501358_p1-lam0.0158-s44",
+     "label": "p1 λ0.0158 s44 20k",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/2026-10-29_193640_232700_p1-lam0.5-s44",
+     "label": "p1 λ0.5 s44 20k",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/2026-10-29_211432_558202_p1-lam0.005-s44",
+     "label": "p1 λ0.005 s44 20k",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/2026-10-29_225252_016369_p1-lam1.58-s44",
+     "label": "p1 λ1.58 s44 20k",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/2026-10-30_003128_328239_p1-lam0-s44",
+     "label": "p1 λ0 s44 20k",
+     "role": "control",
+     "note": null
+    },
+    {
+     "run": "shared/2026-10-30_090108_165582_p2-lam0.05-s44",
+     "label": "p2 λ0.05 s44 20k",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/2026-10-30_103851_582533_p2-lam0.158-s44",
+     "label": "p2 λ0.158 s44 20k",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/2026-10-30_121651_865024_p2-lam0.0158-s44",
+     "label": "p2 λ0.0158 s44 20k",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/2026-10-30_135457_578327_p2-lam0.5-s44",
+     "label": "p2 λ0.5 s44 20k",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/2026-10-30_153258_276243_p2-lam0.005-s44",
+     "label": "p2 λ0.005 s44 20k",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/2026-10-30_171114_035129_p2-lam1.58-s44",
+     "label": "p2 λ1.58 s44 20k",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/2026-10-30_184920_848455_p1-lam5-s44",
+     "label": "p1 λ5 s44 20k",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/2026-10-30_202727_798220_p1-lam15.8-s44",
+     "label": "p1 λ15.8 s44 20k",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/2026-11-02_104336_054598_off25-lam0.5-s44",
+     "label": "p1 λ0 s44 5k, continued from p1-lam0.5-s44:20000",
+     "role": "control",
+     "note": null
+    },
+    {
+     "run": "shared/2026-11-02_110934_128026_c60-lam0.5-s44",
+     "label": "p1 λ0.5 s44 40k, continued from p1-lam0.5-s44:20000",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/2026-11-02_142254_645438_c60-ref-s44",
+     "label": "p1 λ0.05 s44 40k, continued from ref-s44:20000",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/2026-11-02_174020_126574_db-lam1.58-s44",
+     "label": "p1 λ1.58 s44 20k, debiased (4/n removed per term)",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/2026-11-02_191823_972112_db-lam15.8-s44",
+     "label": "p1 λ15.8 s44 20k, debiased (4/n removed per term)",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/2026-11-02_205737_170594_ref-s45",
+     "label": "p1 λ15.8 s45 20k",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/2026-11-02_223607_047918_db-lam15.8-s45",
+     "label": "p1 λ15.8 s45 20k, debiased (4/n removed per term)",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/2026-11-03_212824_721919_c60-db-ref-s44",
+     "label": "p1 λ0.05 s44 40k, debiased (4/n removed per term), continued from ref-s44:20000",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/2026-11-04_203053_375529_db-lam0.5-s44",
+     "label": "p1 λ0.5 s44 60k, debiased (4/n removed per term)",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/2026-11-04_234707_242785_db-lam0.05-s44",
+     "label": "p1 λ0.05 s44 60k, debiased (4/n removed per term)",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/2026-11-06_101831_213902_p1-lam0.03-s44",
+     "label": "p1 λ0.03 s44 20k",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/2026-11-06_202718_304668_sn-lam0.05-s44",
+     "label": "p1 λ0.05 s44 20k, latent noise scaled to std(z)",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/2026-11-06_220811_572794_c60-sn-ref-s44",
+     "label": "p1 λ0.05 s44 40k, latent noise scaled to std(z), continued from ref-s44:20000",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/2026-11-07_012316_343856_c60-db-sn-ref-s44",
+     "label": "p1 λ0.05 s44 40k, debiased (4/n removed per term), latent noise scaled to std(z), continued from ref-s44:20000",
+     "role": "treatment",
+     "note": null
+    }
+   ],
+   "verdict": "Keep plain λ = 0.05. From λ 0.5 up, r sits on its batch noise floor 2(4/B)^2 = 0.0078 and more strength only adds churn. p = 2 gives no gain. Debiasing (4/n removed per term) halves the damage at λ 15.8 on 2 seeds, but gives no gain at λ 0.05 (60k: 0.0042 against 0.0041). At 60k, λ 0.05 (0.0041) beats λ 0.5 (0.0083).",
+   "sources": [
+    "scripts/experiment_add.py"
+   ],
+   "planned_runs": []
+  },
+  {
+   "id": "sfscale",
+   "title": "Self-teaching on self-flow, scaling sweep (1M to 50M)",
+   "created": "2026-10-23",
+   "status": "running",
+   "question": "With self-flow (3 -> 6, EMA teacher) in every run, does adding self-teaching (judge at block 3 or 6) lower the EMA FID at 100k against the paired self-flow-only run, and does that gain grow from 1M to 50M? Paired gains per scale: <data-root>/outputs/sfscale/report.md",
+   "falsifier": null,
+   "primary_metric": "fid_ema",
+   "score_steps": [],
+   "baseline": "shared/unify-wclamp01-sfscale-1m-base-seed0-100k-spark",
+   "runs": [
+    {
+     "run": "shared/unify-wclamp01-sfscale-1m-base-seed0-100k-spark",
+     "label": "1m base seed 0",
+     "role": "baseline",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-sfscale-1m-st3-seed0-100k-spark",
+     "label": "1m st3 seed 0",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-sfscale-1m-st6-seed0-100k-spark",
+     "label": "1m st6 seed 0",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-sfscale-2m-base-seed0-100k-spark",
+     "label": "2m base seed 0",
+     "role": "control",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-sfscale-2m-st3-seed0-100k-spark",
+     "label": "2m st3 seed 0",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-sfscale-2m-st6-seed0-100k-spark",
+     "label": "2m st6 seed 0",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-sfscale-5m-base-seed0-100k-spark",
+     "label": "5m base seed 0",
+     "role": "control",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-sfscale-5m-st3-seed0-100k-spark",
+     "label": "5m st3 seed 0",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-sfscale-5m-st6-seed0-100k-spark",
+     "label": "5m st6 seed 0",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-sfscale-10m-base-seed0-100k-spark",
+     "label": "10m base seed 0",
+     "role": "control",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-sfscale-10m-st3-seed0-100k-spark",
+     "label": "10m st3 seed 0",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-sfscale-10m-st6-seed0-100k-spark",
+     "label": "10m st6 seed 0",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-sfscale-20m-base-seed0-100k-spark",
+     "label": "20m base seed 0",
+     "role": "control",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-sfscale-20m-st3-seed0-100k-spark",
+     "label": "20m st3 seed 0",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-sfscale-20m-st6-seed0-100k-spark",
+     "label": "20m st6 seed 0",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-sfscale-50m-base-seed0-100k-spark",
+     "label": "50m base seed 0",
+     "role": "control",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-sfscale-50m-st3-seed0-100k-spark",
+     "label": "50m st3 seed 0",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-sfscale-50m-st6-seed0-100k-spark",
+     "label": "50m st6 seed 0",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-sfscale-1m-base-seed1-100k-spark",
+     "label": "1m base seed 1",
+     "role": "control",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-sfscale-1m-st3-seed1-100k-spark",
+     "label": "1m st3 seed 1",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-sfscale-1m-st6-seed1-100k-spark",
+     "label": "1m st6 seed 1",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-sfscale-2m-base-seed1-100k-spark",
+     "label": "2m base seed 1",
+     "role": "control",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-sfscale-2m-st3-seed1-100k-spark",
+     "label": "2m st3 seed 1",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-sfscale-2m-st6-seed1-100k-spark",
+     "label": "2m st6 seed 1",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-sfscale-5m-base-seed1-100k-spark",
+     "label": "5m base seed 1",
+     "role": "control",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-sfscale-5m-st3-seed1-100k-spark",
+     "label": "5m st3 seed 1",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-sfscale-5m-st6-seed1-100k-spark",
+     "label": "5m st6 seed 1",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-sfscale-10m-base-seed1-100k-spark",
+     "label": "10m base seed 1",
+     "role": "control",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-sfscale-10m-st3-seed1-100k-spark",
+     "label": "10m st3 seed 1",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-sfscale-10m-st6-seed1-100k-spark",
+     "label": "10m st6 seed 1",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-sfscale-20m-base-seed1-100k-spark",
+     "label": "20m base seed 1",
+     "role": "control",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-sfscale-20m-st3-seed1-100k-spark",
+     "label": "20m st3 seed 1",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-sfscale-20m-st6-seed1-100k-spark",
+     "label": "20m st6 seed 1",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-sfscale-50m-base-seed1-100k-spark",
+     "label": "50m base seed 1",
+     "role": "control",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-sfscale-50m-st3-seed1-100k-spark",
+     "label": "50m st3 seed 1",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-sfscale-50m-st6-seed1-100k-spark",
+     "label": "50m st6 seed 1",
+     "role": "treatment",
+     "note": null
+    }
+   ],
+   "verdict": null,
+   "sources": [
+    "scripts/experiment_add.py"
+   ],
+   "planned_runs": [],
+   "pages": [
+    {
+     "title": "Write-up: self-teaching helps FID only on self-flow, and pushes samples to black and white",
+     "href": "/selfteach-contrast.html"
+    }
+   ]
+  },
+  {
+   "id": "stscale",
+   "title": "Self-teaching scaling sweep (1M to 50M)",
+   "created": "2026-10-21",
+   "status": "running",
+   "question": "Does the EMA FID gain of self-teaching (judge at block 3 or 6) over the paired baseline grow with the trainable parameter count, 1M to 50M? Paired gains per scale: <data-root>/outputs/stscale/report.md",
+   "falsifier": null,
+   "primary_metric": "fid_ema",
+   "score_steps": [],
+   "baseline": "shared/unify-wclamp01-stscale-1m-base-seed0-100k-spark",
+   "runs": [
+    {
+     "run": "shared/unify-wclamp01-stscale-1m-base-seed0-100k-spark",
+     "label": "1m base seed 0",
+     "role": "baseline",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-stscale-1m-st3-seed0-100k-spark",
+     "label": "1m st3 seed 0",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-stscale-1m-st6-seed0-100k-spark",
+     "label": "1m st6 seed 0",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-stscale-2m-base-seed0-100k-spark",
+     "label": "2m base seed 0",
+     "role": "control",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-stscale-2m-st3-seed0-100k-spark",
+     "label": "2m st3 seed 0",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-stscale-2m-st6-seed0-100k-spark",
+     "label": "2m st6 seed 0",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-stscale-5m-base-seed0-100k-spark",
+     "label": "5m base seed 0",
+     "role": "control",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-stscale-5m-st3-seed0-100k-spark",
+     "label": "5m st3 seed 0",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-stscale-5m-st6-seed0-100k-spark",
+     "label": "5m st6 seed 0",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-stscale-10m-base-seed0-100k-spark",
+     "label": "10m base seed 0",
+     "role": "control",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-stscale-10m-st3-seed0-100k-spark",
+     "label": "10m st3 seed 0",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-stscale-10m-st6-seed0-100k-spark",
+     "label": "10m st6 seed 0",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-stscale-20m-base-seed0-100k-spark",
+     "label": "20m base seed 0",
+     "role": "control",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-stscale-20m-st3-seed0-100k-spark",
+     "label": "20m st3 seed 0",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-stscale-20m-st6-seed0-100k-spark",
+     "label": "20m st6 seed 0",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-stscale-50m-base-seed0-100k-spark",
+     "label": "50m base seed 0",
+     "role": "control",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-stscale-50m-st3-seed0-100k-spark",
+     "label": "50m st3 seed 0",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-stscale-50m-st6-seed0-100k-spark",
+     "label": "50m st6 seed 0",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-stscale-1m-base-seed1-100k-spark",
+     "label": "1m base seed 1",
+     "role": "control",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-stscale-1m-st3-seed1-100k-spark",
+     "label": "1m st3 seed 1",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-stscale-1m-st6-seed1-100k-spark",
+     "label": "1m st6 seed 1",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-stscale-2m-base-seed1-100k-spark",
+     "label": "2m base seed 1",
+     "role": "control",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-stscale-2m-st3-seed1-100k-spark",
+     "label": "2m st3 seed 1",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-stscale-2m-st6-seed1-100k-spark",
+     "label": "2m st6 seed 1",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-stscale-5m-base-seed1-100k-spark",
+     "label": "5m base seed 1",
+     "role": "control",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-stscale-5m-st3-seed1-100k-spark",
+     "label": "5m st3 seed 1",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-stscale-5m-st6-seed1-100k-spark",
+     "label": "5m st6 seed 1",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-stscale-10m-base-seed1-100k-spark",
+     "label": "10m base seed 1",
+     "role": "control",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-stscale-10m-st3-seed1-100k-spark",
+     "label": "10m st3 seed 1",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-stscale-10m-st6-seed1-100k-spark",
+     "label": "10m st6 seed 1",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-stscale-20m-base-seed1-100k-spark",
+     "label": "20m base seed 1",
+     "role": "control",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-stscale-20m-st3-seed1-100k-spark",
+     "label": "20m st3 seed 1",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-stscale-20m-st6-seed1-100k-spark",
+     "label": "20m st6 seed 1",
+     "role": "treatment",
+     "note": null
+    }
+   ],
+   "verdict": null,
+   "sources": [
+    "scripts/experiment_add.py"
+   ],
+   "planned_runs": [
+    "unify-wclamp01-stscale-50m-base-seed1-100k-spark",
+    "unify-wclamp01-stscale-50m-st3-seed1-100k-spark",
+    "unify-wclamp01-stscale-50m-st6-seed1-100k-spark",
+    "unify-wclamp01-stscale-1m-base-seed2-100k-spark",
+    "unify-wclamp01-stscale-1m-st3-seed2-100k-spark",
+    "unify-wclamp01-stscale-1m-st6-seed2-100k-spark",
+    "unify-wclamp01-stscale-2m-base-seed2-100k-spark",
+    "unify-wclamp01-stscale-2m-st3-seed2-100k-spark",
+    "unify-wclamp01-stscale-2m-st6-seed2-100k-spark",
+    "unify-wclamp01-stscale-5m-base-seed2-100k-spark",
+    "unify-wclamp01-stscale-5m-st3-seed2-100k-spark",
+    "unify-wclamp01-stscale-5m-st6-seed2-100k-spark",
+    "unify-wclamp01-stscale-10m-base-seed2-100k-spark",
+    "unify-wclamp01-stscale-10m-st3-seed2-100k-spark",
+    "unify-wclamp01-stscale-10m-st6-seed2-100k-spark",
+    "unify-wclamp01-stscale-20m-base-seed2-100k-spark",
+    "unify-wclamp01-stscale-20m-st3-seed2-100k-spark",
+    "unify-wclamp01-stscale-20m-st6-seed2-100k-spark",
+    "unify-wclamp01-stscale-50m-base-seed2-100k-spark",
+    "unify-wclamp01-stscale-50m-st3-seed2-100k-spark",
+    "unify-wclamp01-stscale-50m-st6-seed2-100k-spark"
+   ],
+   "pages": [
+    {
+     "title": "Write-up: self-teaching helps FID only on self-flow, and pushes samples to black and white",
+     "href": "/selfteach-contrast.html"
+    }
+   ]
+  },
+  {
+   "id": "moe-expert-evolution-weak-aux",
+   "title": "moe-expert-evolution-weak-aux",
+   "created": "2026-10-20",
+   "status": "running",
+   "question": null,
+   "falsifier": null,
+   "primary_metric": "fid_ema",
+   "score_steps": [],
+   "baseline": null,
+   "runs": [
+    {
+     "run": "shared/unify-wclamp01-a1-moe-aux1e-3-evolve10k-seed2-spark-150k",
+     "label": "MoE evolve aux 0.001 w10k s2",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-a1-moe-aux1e-4-evolve10k-seed2-spark-150k",
+     "label": "MoE evolve aux 0.0001 w10k s2",
+     "role": "treatment",
+     "note": null
+    }
+   ],
+   "verdict": null,
+   "sources": [
+    "scripts/experiment_add.py"
+   ]
+  },
+  {
+   "id": "moe-expert-evolution-noaux-300k",
+   "title": "MoE expert evolution, no load balancing (300k)",
+   "created": "2026-10-20",
+   "status": "running",
+   "question": "Without the load-balancing loss, does cloning the most-used expert (>25%) into the least-used slot (<3%) every 25k steps beat a fixed MoE?",
+   "falsifier": null,
+   "primary_metric": "fid_ema",
+   "score_steps": [],
+   "baseline": null,
+   "runs": [
+    {
+     "run": "shared/unify-wclamp01-a1-moe-noaux-evolve-seed2-spark-300k",
+     "label": "MoE evolve s2",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-a1-moe-noaux-evolve10k-seed2-spark-150k",
+     "label": "MoE evolve aux 0 w10k s2",
+     "role": "treatment",
+     "note": null
+    }
+   ],
+   "verdict": null,
+   "sources": [
+    "scripts/experiment_add.py"
+   ]
+  },
+  {
+   "id": "moe-expert-evolution-300k",
+   "title": "MoE expert evolution (300k)",
+   "created": "2026-10-19",
+   "status": "running",
+   "question": "Does an evolving MoE (expert cloning) on the A1 self-flow recipe beat a fixed 8-expert noisy top-2 MoE and plain A1 at 300k?",
+   "falsifier": null,
+   "primary_metric": "fid_ema",
+   "score_steps": [
+    100000,
+    200000,
+    300000
+   ],
+   "baseline": "shared/unify-wclamp01-paper-a1-selfflow-ema-seed2-spark-300k",
+   "runs": [
+    {
+     "run": "shared/unify-wclamp01-paper-a1-selfflow-ema-seed2-spark-300k",
+     "label": "A1 self-flow (no MoE)",
+     "role": "baseline",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-a1-moe-fixed-seed2-spark-300k",
+     "label": "fixed MoE seed 2",
+     "role": "control",
+     "note": "fixed 8 experts, noisy top-2, no cloning"
+    },
+    {
+     "run": "shared/unify-wclamp01-a1-moe-evolve-seed2-spark-300k",
+     "label": "MoE evolve s2 (stopped)",
+     "role": "treatment",
+     "note": "stopped by the user at about 255k on 2026-10-20: aux 0.01 kept usage at 12.4-12.7%, no clone ever happened, so it equals a fixed run"
+    }
+   ],
+   "verdict": "Fixed MoE seed 2 reached 107.8 at 300k (A1 without MoE 116.5). Evolution never fired: the load-balancing loss keeps the expert shares within 12.4-12.7%.",
+   "sources": [
+    "imagenet-selfteach/unify3090/spark_moe.json",
+    "DESCRIPTION.md of unify-wclamp01-a1-moe-fixed-seed2-spark-300k"
+   ],
+   "planned_runs": [
+    "unify-wclamp01-a1-moe-evolve-seed2-spark-300k",
+    "unify-wclamp01-a1-moe-fixed-seed3-spark-300k",
+    "unify-wclamp01-a1-moe-evolve-seed3-spark-300k"
+   ]
+  },
+  {
+   "id": "paper-2607-02508-ablation-300k",
+   "title": "Ablation toward arXiv 2607.02508, continued to 300k",
+   "created": "2026-10-17",
+   "status": "done",
+   "question": "Do the 150k ranks of the paper-ablation steps (A0 mixed noise, A1 self-flow, A2 separation, A3 head/cos) hold when each run continues to 300k?",
+   "falsifier": null,
+   "primary_metric": "fid_ema",
+   "score_steps": [
+    150000,
+    200000,
+    250000,
+    300000
+   ],
+   "baseline": "wsl3090/unify-wclamp01-control-seed2-inet128-450k--a3883ad933d246c0afb9f00946d5b0e5",
+   "runs": [
+    {
+     "run": "wsl3090/unify-wclamp01-control-seed2-inet128-450k--a3883ad933d246c0afb9f00946d5b0e5",
+     "label": "control 450k (3090), read at 300k",
+     "role": "baseline",
+     "note": "FID 123.4 at 300k, lr still 1e-4"
+    },
+    {
+     "run": "shared/unify-wclamp01-paper-a0-mixnoise-noteacher-seed2-spark-300k",
+     "label": "A0 mixed noise, no teacher",
+     "role": "control",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-paper-a1-selfflow-ema-seed2-spark-300k",
+     "label": "A1 self-flow EMA teacher",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-paper-a2-separate-seed2-spark-300k",
+     "label": "A2 + attention separation",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-paper-a3-head-cos-seed2-spark-300k",
+     "label": "A3 + MLP head, cos loss",
+     "role": "treatment",
+     "note": null
+    }
+   ],
+   "verdict": "At 300k A1 (116.5) and A0 (118.3) beat the control at 300k (123.4); A2 (127.6) and A3 (138.0) stay worse. A1 and A0 differ by under 2 FID, so the teacher adds little over mixed noise.",
+   "sources": [
+    "imagenet-selfteach/unify3090/spark_ablation.json",
+    "imagenet-selfteach/unify3090/spark_series.py",
+    "DESCRIPTION.md of the -300k runs"
+   ]
+  },
+  {
+   "id": "paper-2607-02508-ablation-150k",
+   "title": "Ablation toward arXiv 2607.02508 (150k)",
+   "created": "2026-10-17",
+   "status": "done",
+   "question": "Which part of the paper recipe (self-flow EMA teacher, attention separation, MLP head with cos loss) improves FID over the dense control at 150k?",
+   "falsifier": null,
+   "primary_metric": "fid_ema",
+   "score_steps": [
+    50000,
+    100000,
+    150000
+   ],
+   "baseline": "wsl3090/unify-wclamp01-control-seed2-inet128-150k--007008096a2d4810988093d03fab3fd1",
+   "runs": [
+    {
+     "run": "wsl3090/unify-wclamp01-control-seed2-inet128-150k--007008096a2d4810988093d03fab3fd1",
+     "label": "control 150k (3090)",
+     "role": "baseline",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-paper-a0-mixnoise-noteacher-seed2-spark-150k",
+     "label": "A0 mixed noise, no teacher",
+     "role": "control",
+     "note": "Is the A1 gain augmentation or self-supervision?"
+    },
+    {
+     "run": "shared/unify-wclamp01-paper-a1-selfflow-ema-seed2-spark-150k",
+     "label": "A1 self-flow EMA teacher",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-paper-a2-separate-seed2-spark-150k",
+     "label": "A2 + attention separation",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-paper-a3-head-cos-seed2-spark-150k",
+     "label": "A3 + MLP head, cos loss",
+     "role": "treatment",
+     "note": null
+    }
+   ],
+   "verdict": "A1 (121.6) beats the control (130.1); A0 mixed noise alone gets most of it (124.4). Separation (A2 134.6) and head/cos (A3 141.1) make FID worse.",
+   "sources": [
+    "imagenet-selfteach/unify3090/spark_ablation.json",
+    "imagenet-selfteach/unify3090/spark_series.py",
+    "~/.claude/projects/-srv-agent/memory/fid-research-loop.md"
+   ]
+  },
+  {
+   "id": "msa-finetune-from-450k-control",
+   "title": "MSA fine-tunes from 450k control @400k",
+   "created": "2026-10-17",
+   "status": "done",
+   "question": "Does multi-scale attention separation only slow early convergence, or also the FID gain per step late in training (fine-tune 400k to 450k)?",
+   "falsifier": null,
+   "primary_metric": "fid_ema",
+   "score_steps": [
+    400000,
+    425000,
+    450000
+   ],
+   "baseline": "wsl3090/unify-wclamp01-control-seed2-inet128-450k--a3883ad933d246c0afb9f00946d5b0e5",
+   "runs": [
+    {
+     "run": "wsl3090/unify-wclamp01-control-seed2-inet128-450k--a3883ad933d246c0afb9f00946d5b0e5",
+     "label": "control 450k (3090)",
+     "role": "baseline",
+     "note": "scores 118.1 / 117.1 / 116.5 at 400k / 425k / 450k"
+    },
+    {
+     "run": "shared/unify-wclamp01-ft450c400k-msa-spatial-shared-seed2-spark-450k",
+     "label": "ft spatial-shared",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-ft450c400k-msa-spatial-staggered-seed2-spark-450k",
+     "label": "ft spatial-staggered",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-ft450c400k-msa-long-shared-seed2-spark-450k",
+     "label": "ft long-shared",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-ft450c400k-msa-spatial-mixed-seed2-spark-450k",
+     "label": "ft spatial-mixed",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-ft450c400k-msa-long-mixed-seed2-spark-450k",
+     "label": "ft long-mixed",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-ft450c400k-msa-splitonly-above-seed2-spark-450k",
+     "label": "ft splitonly-above",
+     "role": "treatment",
+     "note": null
+    }
+   ],
+   "verdict": "All six fine-tunes end at 126.0 to 130.8 at 450k, against 116.5 for the control; splitonly-above is the least bad (126.0). The fine-tunes ran on the Spark (other data source), the control on the 3090.",
+   "sources": [
+    "imagenet-selfteach/unify3090/msa_series.py",
+    "imagenet-selfteach/unify3090/spark_series.py",
+    "~/.claude/projects/-srv-agent/memory/fid-research-loop.md"
+   ]
+  },
+  {
+   "id": "msa-series-150k",
+   "title": "Multi-scale attention separation (150k, 3090)",
+   "created": "2026-10-15",
+   "status": "done",
+   "question": "Do dense + split + sparse forwards of the same weights (msa) improve FID over a dense-only control at equal steps or equal compute?",
+   "falsifier": "splitonly-above: FID above the control (130.1) at 150k.",
+   "primary_metric": "fid_ema",
+   "score_steps": [
+    50000,
+    100000,
+    150000
+   ],
+   "baseline": "wsl3090/unify-wclamp01-control-seed2-inet128-150k--007008096a2d4810988093d03fab3fd1",
+   "runs": [
+    {
+     "run": "wsl3090/unify-wclamp01-control-seed2-inet128-150k--007008096a2d4810988093d03fab3fd1",
+     "label": "control 150k, equal steps",
+     "role": "baseline",
+     "note": null
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-control-seed2-inet128-450k--a3883ad933d246c0afb9f00946d5b0e5",
+     "label": "control 450k, equal compute",
+     "role": "control",
+     "note": null
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-msa-spatial-shared-seed2-inet128-150k--4048804fd3954ddfa8515ba89c3de67b",
+     "label": "spatial pairs, shared t",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-msa-spatial-staggered-seed2-inet128-150k--0fc7c7fa01414724844bbb8a5cdf8bcc",
+     "label": "spatial pairs, staggered t",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-msa-long-shared-seed2-inet128-150k--30fc0cd19e774338bd8a1a874a0a9fe8",
+     "label": "long pairs, shared t",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-msa-spatial-mixed-seed2-inet128-150k--22066614ccb145e08c70b3418495a9a0",
+     "label": "spatial pairs, mixed t",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-msa-long-mixed-seed2-inet128-150k--1665c05ab7dd4a90bc96747e04ede56f",
+     "label": "long pairs, mixed t",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-msa-splitonly-above-seed2-inet128-150k--c0b8bc2369d74411872fffcdd0d97829",
+     "label": "split only, student t above",
+     "role": "treatment",
+     "note": null
+    }
+   ],
+   "verdict": "The control (130.1) beats every msa run: staggered 134.9, splitonly-above 132.3, long-mixed 139.5, shared 140.8 / 141.1, spatial-mixed 141.3.",
+   "sources": [
+    "imagenet-selfteach/unify3090/msa_series.py",
+    "~/.claude/projects/-srv-agent/memory/fid-research-loop.md"
+   ]
+  },
+  {
+   "id": "noise-schedule-branches-650k",
+   "title": "Noise schedule branches from the 100M XM run @650k",
+   "created": "2026-10-15",
+   "status": "done",
+   "question": "Does a uniform or JiT-like t distribution reduce the black and white pixels of the 100M XM model without hurting FID?",
+   "falsifier": "Winner rule: FID at most control + 10 and lower black + white share than the control.",
+   "primary_metric": "fid_ema",
+   "score_steps": [
+    650000,
+    675000
+   ],
+   "baseline": "shared/unify-wclamp01-selfflow3to6-selfteach-xmot3-100m-400k-spark",
+   "runs": [
+    {
+     "run": "shared/unify-wclamp01-selfflow3to6-selfteach-xmot3-100m-400k-spark",
+     "label": "100M XM, broad15 (parent)",
+     "role": "baseline",
+     "note": "FID 84.05 at 650k, black 17.4%, white 13.6%"
+    },
+    {
+     "run": "shared/unify-wclamp01-selfflow3to6-selfteach-xmot3-100m-from650k-uniform",
+     "label": "uniform t (continued to 1.2M)",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-selfflow3to6-selfteach-xmot3-100m-from650k-jit",
+     "label": "JiT t (mean 0.586, std 0.8)",
+     "role": "treatment",
+     "note": null
+    }
+   ],
+   "verdict": "At 675k: uniform 86.38 (black+white 27.4%), JiT 87.26 (darker), control 84.05 (31.0%). Uniform won by the rule and continued to 1.2M, but black pixels at 685k were not lower (18.9%).",
+   "sources": [
+    "imagenet-selfteach/unify3090/branch_spark.py",
+    "imagenet-selfteach/unify3090/after_branch.py",
+    "~/.claude/projects/-srv-agent/memory/fid-research-loop.md"
+   ]
+  },
+  {
+   "id": "xm-100m-spark",
+   "title": "XM transport on the 100M Spark run",
+   "created": "2026-10-14",
+   "status": "done",
+   "question": "Does XM transport with 3 seeds improve the 100M self-flow + self-teach run, and does it keep improving to 1.2M steps?",
+   "falsifier": null,
+   "primary_metric": "fid_ema",
+   "score_steps": [
+    100000,
+    200000,
+    300000,
+    400000
+   ],
+   "baseline": "shared/unify-wclamp01-selfflow3to6-selfteach-100m-400k-spark",
+   "runs": [
+    {
+     "run": "shared/unify-wclamp01-selfflow3to6-selfteach-100m-400k-spark",
+     "label": "100M, no XM",
+     "role": "baseline",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-selfflow3to6-selfteach-xmot3-100m-400k-spark",
+     "label": "100M + XM transport 3",
+     "role": "treatment",
+     "note": "continued past 400k; stopped at 662.5k"
+    }
+   ],
+   "verdict": "XM is ahead on EMA weights: 110.3 vs 113.7 at 100k, 94.85 vs 106.2 at 200k. Plain FID then got worse to 104.7 at 350k as black pixels grew; 84.05 at 650k.",
+   "sources": [
+    "imagenet-selfteach/unify3090/extend_spark.py",
+    "~/.claude/projects/-srv-agent/memory/fid-research-loop.md"
+   ]
+  },
+  {
+   "id": "corrector-20m",
+   "title": "Iterative correction training (corrector)",
+   "created": "2026-10-13",
+   "status": "done",
+   "question": "Do blocks 5-8 trained as a re-applicable corrector of the blocks 1-4 prediction beat the control at equal sampling cost?",
+   "falsifier": null,
+   "primary_metric": "fid_ema",
+   "score_steps": [
+    25000,
+    50000,
+    75000,
+    100000
+   ],
+   "baseline": "wsl3090/unify-wclamp01-control-seed2-inet128-100k--3b58b666918542f8bf9baf400bf7e525",
+   "runs": [
+    {
+     "run": "wsl3090/unify-wclamp01-control-seed2-inet128-100k--3b58b666918542f8bf9baf400bf7e525",
+     "label": "control seed 2",
+     "role": "baseline",
+     "note": null
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-corrector-seed2-inet128-100k--a0ecb425a1184541a35964e7ac433886",
+     "label": "corrector split 4",
+     "role": "treatment",
+     "note": null
+    }
+   ],
+   "verdict": "Corrector EMA 152.3 at K1 (128 evals), 146.0 at K2; it never reaches the control (136.8) at equal cost.",
+   "sources": [
+    "imagenet-selfteach/unify3090/submit_corrector.py",
+    "~/.claude/projects/-srv-agent/memory/fid-research-loop.md"
+   ]
+  },
+  {
+   "id": "moe-upcycling-from-50k-base",
+   "title": "MoE sparse upcycling from a shared 50k dense base",
+   "created": "2026-10-13",
+   "status": "done",
+   "question": "Does converting the MLPs of blocks 2/4/6/8 into 2-32 experts (expert choice or noise bucket) at step 50k improve FID at 100k?",
+   "falsifier": null,
+   "primary_metric": "fid_ema",
+   "score_steps": [
+    75000,
+    100000
+   ],
+   "baseline": "wsl3090/unify-wclamp01-control-seed2-inet128-100k--3b58b666918542f8bf9baf400bf7e525",
+   "runs": [
+    {
+     "run": "wsl3090/unify-wclamp01-control-seed2-inet128-100k--3b58b666918542f8bf9baf400bf7e525",
+     "label": "control seed 2 (dense)",
+     "role": "baseline",
+     "note": null
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-base50k-seed2-inet128--8b99c91f1f214343a2f45266ab9c1ff8",
+     "label": "shared dense base, 50k",
+     "role": "control",
+     "note": "the control run stopped at 50k; parent of every MoE run"
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-moe2-choice-from50k-seed2-inet128-100k--4899488dbaba414ea1296ff7e295aeb2",
+     "label": "2 experts, choice",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-moe4-choice-from50k-seed2-inet128-100k--2702e01c37204425ad2e13bae47337ac",
+     "label": "4 experts, choice",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-moe16-choice-from50k-seed2-inet128-100k--4a1a1134490947a5acb173b8074f5b89",
+     "label": "16 experts, choice",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-moe32-choice-from50k-seed2-inet128-100k--59ff9bafbf774b4cb669b8dd1d9206d9",
+     "label": "32 experts, choice",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-moe2-bucket-from50k-seed2-inet128-100k--92601b1f384648a3a4c608b9f69a5d69",
+     "label": "2 experts, bucket",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-moe4-bucket-from50k-seed2-inet128-100k--c3118062a86a4624bf912dba424ef36a",
+     "label": "4 experts, bucket",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-moe16-bucket-from50k-seed2-inet128-100k--eed7a430acda4259a109db045464033c",
+     "label": "16 experts, bucket",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-moe32-bucket-from50k-seed2-inet128-100k--7dc746269bbe4acba05ea2de695c447d",
+     "label": "32 experts, bucket",
+     "role": "treatment",
+     "note": null
+    }
+   ],
+   "verdict": "No gain, and more experts is worse with both routers: choice 138.8 / 139.7 / 141.9 / 143.3, bucket 137.9 / 138.1 / 142.1 / 142.6 (2/4/16/32 experts) against 136.8. Series closed.",
+   "sources": [
+    "imagenet-selfteach/unify3090/submit_moe.py",
+    "imagenet-selfteach/unify3090/moe_after_base.py",
+    "~/.claude/projects/-srv-agent/memory/fid-research-loop.md"
+   ]
+  },
+  {
+   "id": "colab-validation",
+   "title": "Colab runner validation and probes",
+   "created": "2026-10-13",
+   "status": "done",
+   "question": null,
+   "falsifier": null,
+   "primary_metric": "none",
+   "score_steps": [],
+   "baseline": null,
+   "runs": [
+    {
+     "run": "shared/colab-colab-general-validation-20261013-144746-7b0e71cf",
+     "label": "colab-colab-general-validation-20261013-144746-7b0e71cf",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/colab-colab-general-validation-20261013-152557-d6e90a6e",
+     "label": "colab-colab-general-validation-20261013-152557-d6e90a6e",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/colab-probe-a100-20261013-151503-dd357499",
+     "label": "colab-probe-a100-20261013-151503-dd357499",
+     "role": "treatment",
+     "note": null
+    }
+   ],
+   "verdict": null,
+   "sources": [
+    "skill colab-training",
+    "~/.claude/projects/-srv-agent/memory/fid-research-loop.md"
+   ]
+  },
+  {
+   "id": "noise-recipe-20m",
+   "title": "Noise recipe: JiT, pure-noise share, noise mean spread",
+   "created": "2026-10-13",
+   "status": "done",
+   "question": "Does a different train noise distribution (JiT logit-normal, 5% pure noise, wider noise-mean spread) improve FID or the sample brightness statistics of the 20M model?",
+   "falsifier": "jitnoise-pure5: first-prediction brightness far from 0.44 or FID above 122.3.",
+   "primary_metric": "fid_ema",
+   "score_steps": [
+    25000,
+    50000,
+    75000,
+    100000
+   ],
+   "baseline": "wsl3090/unify-wclamp01-control-seed2-inet128-100k--3b58b666918542f8bf9baf400bf7e525",
+   "runs": [
+    {
+     "run": "wsl3090/unify-wclamp01-control-seed2-inet128-100k--3b58b666918542f8bf9baf400bf7e525",
+     "label": "control seed 2",
+     "role": "baseline",
+     "note": null
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-jitnoise-seed2-inet128-100k--c88aa584f9f540e2a685abea6687456b",
+     "label": "JiT noise recipe",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-jitnoise-pure5-seed2-inet128-100k--8c11fbb26dc24853a890ab3fdecfaed2",
+     "label": "JiT + 5% pure noise",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-noisemean14-seed2-inet128-100k--d5278df3557145d9b8481498cbb61de4",
+     "label": "noise mean std x3",
+     "role": "treatment",
+     "note": null
+    }
+   ],
+   "verdict": "JiT recipe 122.3 EMA against 136.8 but dark samples (black 11.7%). The 5% pure-noise share fixes the darkness but FID rises to 129.8. noisemean14 141.0: the dial works but over-corrects the 20M model.",
+   "sources": [
+    "imagenet-selfteach/unify3090/submit_noise.py",
+    "~/.claude/projects/-srv-agent/memory/fid-research-loop.md"
+   ]
+  },
+  {
+   "id": "class-conditional-20m",
+   "title": "Class-conditional model",
+   "created": "2026-10-13",
+   "status": "done",
+   "question": "How much does a learned class vector added to the time embedding improve FID, with and without guidance?",
+   "falsifier": null,
+   "primary_metric": "fid_ema",
+   "score_steps": [
+    25000,
+    50000,
+    75000,
+    100000
+   ],
+   "baseline": "wsl3090/unify-wclamp01-control-seed2-inet128-100k--3b58b666918542f8bf9baf400bf7e525",
+   "runs": [
+    {
+     "run": "wsl3090/unify-wclamp01-control-seed2-inet128-100k--3b58b666918542f8bf9baf400bf7e525",
+     "label": "control seed 2 (unconditional)",
+     "role": "baseline",
+     "note": null
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-cond-seed2-inet128-100k--b65aa96ea9b14700b02ee3a6c8fa475f",
+     "label": "class-conditional",
+     "role": "treatment",
+     "note": null
+    }
+   ],
+   "verdict": "No guidance 133.4 EMA against 136.8; CFG 1.5 / 2 / 3 gives 127.4 / 122.7 / 118.9.",
+   "sources": [
+    "imagenet-selfteach/unify3090/submit_cond.py",
+    "~/.claude/projects/-srv-agent/memory/fid-research-loop.md"
+   ]
+  },
+  {
+   "id": "distill2-two-step-training",
+   "title": "Continuous 2-step training (distill2)",
+   "created": "2026-10-13",
+   "status": "done",
+   "question": "Does training a second pass from a half Euler step of the model output (with or without linking it to the 1-step output) improve FID?",
+   "falsifier": "w1st: 4-step FID stays above 149.6.",
+   "primary_metric": "fid_ema",
+   "score_steps": [
+    25000,
+    50000,
+    75000,
+    100000
+   ],
+   "baseline": "wsl3090/unify-wclamp01-control-seed2-inet128-100k--3b58b666918542f8bf9baf400bf7e525",
+   "runs": [
+    {
+     "run": "wsl3090/unify-wclamp01-control-seed2-inet128-100k--3b58b666918542f8bf9baf400bf7e525",
+     "label": "control seed 2",
+     "role": "baseline",
+     "note": null
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-distill2train-seed2-inet128-100k--08e047860445447b906028b04dde5436",
+     "label": "2nd pass trained, link target",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-distill2train-none-seed2-inet128-100k--ad9239561f6948cd9c8808cf883ca410",
+     "label": "2nd pass trained, no link",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-distill2train-w1st-seed2-inet128-100k--1d221c52ef8945c88571c1ae0c0def9e",
+     "label": "link target, weight of first t",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-distill2-seed2-inet128-100k--48eea6ca9aa346a2b1a0d5f730c29e78",
+     "label": "2-step output as target only",
+     "role": "treatment",
+     "note": "cancelled when the spec changed"
+    }
+   ],
+   "verdict": "At 16 sampler steps link-target 131.3 and no-link 133.4 beat 136.8, but at 4 steps both are worse (166.3 / 171.3 vs 149.6). w1st is worse at both (138.8; 169.8 at 4 steps).",
+   "sources": [
+    "imagenet-selfteach/unify3090/submit_distill2.py",
+    "~/.claude/projects/-srv-agent/memory/fid-research-loop.md"
+   ]
+  },
+  {
+   "id": "moe-upcycling-inrun",
+   "title": "MoE sparse upcycling, conversion inside one run",
+   "created": "2026-10-13",
+   "status": "done",
+   "question": "Does a 2-expert MoE conversion at step 50k (inside the same run) change FID at 100k?",
+   "falsifier": null,
+   "primary_metric": "fid_ema",
+   "score_steps": [
+    25000,
+    50000,
+    75000,
+    100000
+   ],
+   "baseline": "wsl3090/unify-wclamp01-control-seed2-inet128-100k--3b58b666918542f8bf9baf400bf7e525",
+   "runs": [
+    {
+     "run": "wsl3090/unify-wclamp01-control-seed2-inet128-100k--3b58b666918542f8bf9baf400bf7e525",
+     "label": "control seed 2 (dense)",
+     "role": "baseline",
+     "note": null
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-moe2-choice-seed2-inet128-100k--06900dead27c45cfa456e560e6754552",
+     "label": "2 experts, choice",
+     "role": "treatment",
+     "note": "50k score 309 is an eval bug"
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-moe2-bucket-seed2-inet128-100k--8e1af2bf42364c9f84b8f10424635520",
+     "label": "2 experts, bucket",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-moe4-choice-seed2-inet128-100k--81ddfac969354dee89269374fd83075f",
+     "label": "4 experts, choice",
+     "role": "treatment",
+     "note": "cancelled; replaced by the shared-base design"
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-moe16-choice-seed2-inet128-100k--410bb965244547bfa57119a72fe0c5df",
+     "label": "16 experts, choice",
+     "role": "treatment",
+     "note": "cancelled; replaced by the shared-base design"
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-moe32-choice-seed2-inet128-100k--1d7d4317ff514785a246e5c9511399e7",
+     "label": "32 experts, choice",
+     "role": "treatment",
+     "note": "cancelled; replaced by the shared-base design"
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-moe4-bucket-seed2-inet128-100k--57eef26b147c481385abb0d39ee300e8",
+     "label": "4 experts, bucket",
+     "role": "treatment",
+     "note": "cancelled; replaced by the shared-base design"
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-moe16-bucket-seed2-inet128-100k--c7ac7a4d801a4519a19a29e5b882f44e",
+     "label": "16 experts, bucket",
+     "role": "treatment",
+     "note": "cancelled; replaced by the shared-base design"
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-moe32-bucket-seed2-inet128-100k--883253ae19ea4ac1a94b9b5d4bba8da8",
+     "label": "32 experts, bucket",
+     "role": "treatment",
+     "note": "cancelled; replaced by the shared-base design"
+    }
+   ],
+   "verdict": "moe2-choice 138.0 and moe2-bucket 136.8 EMA = control (136.8); experts specialize by noise level but FID does not move. The 4/16/32-expert runs were cancelled in favor of the shared-base design.",
+   "sources": [
+    "imagenet-selfteach/unify3090/submit_moe.py",
+    "~/.claude/projects/-srv-agent/memory/fid-research-loop.md"
+   ]
+  },
+  {
+   "id": "xm-on-selfflow-20m",
+   "title": "XM noise assignment on top of self-flow",
+   "created": "2026-10-12",
+   "status": "done",
+   "question": "Is the XM transport gain additive with self-flow, and which scoring (final output, R32 readout, high-noise images only) keeps it?",
+   "falsifier": "xmot3r32: FID clearly above 119.2 EMA / 115.5 raw.",
+   "primary_metric": "fid_ema",
+   "score_steps": [
+    25000,
+    50000,
+    75000,
+    100000
+   ],
+   "baseline": "wsl3090/unify-wclamp01-selfflow3to6-seed2-inet128-100k--4c4ab83f4cee43e291347bfb4e0343f7",
+   "runs": [
+    {
+     "run": "wsl3090/unify-wclamp01-selfflow3to6-seed2-inet128-100k--4c4ab83f4cee43e291347bfb4e0343f7",
+     "label": "self-flow seed 2",
+     "role": "baseline",
+     "note": null
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-selfflow3to6-xmot3-seed2-inet128-100k--39d41460279f4dc584db515f805321f9",
+     "label": "self-flow + XM transport 3",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-selfflow3to6-xmot3r32-seed2-inet128-100k--da598df512cc420c8e5ec74428c9600d",
+     "label": "scored by R32 readout",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-selfflow3to6-xmot3-noisy50-seed2-inet128-100k--471a60947ed44a51bf35b426e514ca01",
+     "label": "only noise > 0.5 counts",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-selfflow3to6-xmbest3-seed2-inet128-100k--c64ba85133af4789832e794d9fecff88",
+     "label": "self-flow + XM best of 3",
+     "role": "treatment",
+     "note": null
+    }
+   ],
+   "verdict": "Additive: self-flow + XM transport 119.2 EMA (raw 115.5) against 131.4. R32 scoring 121.7, noisy50 122.8, best-of-3 121.6: all keep most but not all of the gain.",
+   "sources": [
+    "imagenet-selfteach/unify3090/submit_xm_selfflow.py",
+    "~/.claude/projects/-srv-agent/memory/fid-research-loop.md"
+   ]
+  },
+  {
+   "id": "xm-transport-and-ot-20m",
+   "title": "Optimal transport and XM noise assignment",
+   "created": "2026-10-12",
+   "status": "done",
+   "question": "Does pairing noise with images (by model loss, pixel distance, or pure-noise transport) improve FID over the control, and is the gain from the assignment or from shared noise?",
+   "falsifier": "noiseot: FID near 137 means the cost must be the model loss.",
+   "primary_metric": "fid_ema",
+   "score_steps": [
+    25000,
+    50000,
+    75000,
+    100000
+   ],
+   "baseline": "wsl3090/unify-wclamp01-control-seed2-inet128-100k--3b58b666918542f8bf9baf400bf7e525",
+   "runs": [
+    {
+     "run": "wsl3090/unify-wclamp01-control-seed2-inet128-100k--3b58b666918542f8bf9baf400bf7e525",
+     "label": "control seed 2",
+     "role": "baseline",
+     "note": null
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-otnoise4-seed2-inet128-100k--c742ffa0efc1491cb9afdaed6484c625",
+     "label": "transport at pure noise, 1 in 4, w16",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-otnoise4-otw1-seed2-inet128-100k--c425c52faf814de398b4f08a87a18be5",
+     "label": "transport at pure noise, w1",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-xmot2-seed2-inet128-100k--3db9c9d1001c4a8094254190c586abc0",
+     "label": "XM transport 2 seeds",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-xmot3-seed2-inet128-100k--1aff87c7499c44888b43f0ab37be3289",
+     "label": "XM transport 3 seeds",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-xmot4-seed2-inet128-100k--25a2c66af53e4f929701415eebed9409",
+     "label": "XM transport 4 seeds",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-xmrand3-seed2-inet128-100k--7463f767ce9d4677822699ca81c29899",
+     "label": "shared 3 seeds, random assignment",
+     "role": "control",
+     "note": null
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-xmbest3-seed2-inet128-100k--05ac422d7b824d039410c17b0e96a2e7",
+     "label": "XM best of 3 (own noise)",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-xmgroup4-seed2-inet128-100k--aa80f75a25e94c56bf30f810693a0867",
+     "label": "XM transport in groups of 4",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-noiseot-seed2-inet128-100k--f3b66e58481147bba127003c52eaedb5",
+     "label": "noise-image pairing by pixels",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-noiseot-pool16-seed2-inet128-100k--4b05a03264d340b18995e53eee0c185d",
+     "label": "pairing by 8x8 pools",
+     "role": "treatment",
+     "note": null
+    }
+   ],
+   "verdict": "Assignment by model loss is the gain: xmot3 123.3, xmot4 123.3, best-of-3 123.5, groups-of-4 122.4 against 136.8; random assignment 140.8. Pixel pairing gives 2-5 (132.4 / 133.4). Pure-noise transport fails (184.6; 139.9 at weight 1).",
+   "sources": [
+    "imagenet-selfteach/unify3090/submit_ot.py",
+    "imagenet-selfteach/unify3090/score_ot.py",
+    "~/.claude/projects/-srv-agent/memory/fid-research-loop.md"
+   ]
+  },
+  {
+   "id": "wasserstein-reg-on-selfflow",
+   "title": "Wasserstein regularizers on the self-flow stream",
+   "created": "2026-10-11",
+   "status": "done",
+   "question": "Do the four AE-notebook Wasserstein regularizers on the residual stream after block 6 help self-flow?",
+   "falsifier": null,
+   "primary_metric": "fid_ema",
+   "score_steps": [
+    100000
+   ],
+   "baseline": "wsl3090/unify-wclamp01-selfflow3to6-seed2-inet128-100k--4c4ab83f4cee43e291347bfb4e0343f7",
+   "runs": [
+    {
+     "run": "wsl3090/unify-wclamp01-selfflow3to6-seed2-inet128-100k--4c4ab83f4cee43e291347bfb4e0343f7",
+     "label": "self-flow seed 2",
+     "role": "baseline",
+     "note": null
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-selfflow3to6-wreg6-seed2-inet128-100k--547f88a80ac94a319157ec94e6496dbe",
+     "label": "self-flow + 4 Wasserstein regs",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-control-wreg6-seed2-inet128-100k--63f5444afa444e98baac76995c06f973",
+     "label": "regs without self-flow",
+     "role": "control",
+     "note": "cancelled before it ran"
+    }
+   ],
+   "verdict": "Worse: 149.4 EMA against 131.4. The regularizer triples the rank of the block-6 target, so block 3 cannot predict it (my reading). The split test without self-flow never ran.",
+   "sources": [
+    "imagenet-selfteach/unify3090/submit_wreg.py",
+    "imagenet-selfteach/unify3090/submit_wreg_control.py",
+    "~/.claude/projects/-srv-agent/memory/fid-research-loop.md"
+   ]
+  },
+  {
+   "id": "loss-weight-recheck-seed2",
+   "title": "Loss weight recheck on the 20M seed-2 control",
+   "created": "2026-10-11",
+   "status": "done",
+   "question": "Does a loss weight with a smaller range (logflip or log) change FID against clamp01?",
+   "falsifier": null,
+   "primary_metric": "fid_ema",
+   "score_steps": [
+    100000
+   ],
+   "baseline": "wsl3090/unify-wclamp01-control-seed2-inet128-100k--3b58b666918542f8bf9baf400bf7e525",
+   "runs": [
+    {
+     "run": "wsl3090/unify-wclamp01-control-seed2-inet128-100k--3b58b666918542f8bf9baf400bf7e525",
+     "label": "clamp01 control seed 2",
+     "role": "baseline",
+     "note": null
+    },
+    {
+     "run": "wsl3090/unify-wlogflip-control-seed2-inet128-100k--7e5f651e48e740a5893641d22fa31246",
+     "label": "logflip weight",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/unify-wlog-control-seed2-inet128-100k--2076c33ab93244a58da4e0c6a7e1342b",
+     "label": "log weight",
+     "role": "treatment",
+     "note": "cancelled at 77k, not scored"
+    }
+   ],
+   "verdict": "logflip 136.1 EMA = clamp01 136.8. The log run was cancelled at 77k.",
+   "sources": [
+    "imagenet-selfteach/unify3090/submit_weight.py",
+    "~/.claude/projects/-srv-agent/memory/fid-research-loop.md"
+   ]
+  },
+  {
+   "id": "shared-readout-ladder",
+   "title": "Shared un-embed readouts and readout ladders",
+   "created": "2026-10-11",
+   "status": "done",
+   "question": "Can the R32/R64 readouts go through the one final un-embed (no heads), on a longer ladder, and do the readouts help FID at all?",
+   "falsifier": null,
+   "primary_metric": "fid_ema",
+   "score_steps": [
+    100000
+   ],
+   "baseline": "wsl3090/unify-wclamp01-control-seed2-inet128-100k--3b58b666918542f8bf9baf400bf7e525",
+   "runs": [
+    {
+     "run": "wsl3090/unify-wclamp01-control-seed2-inet128-100k--3b58b666918542f8bf9baf400bf7e525",
+     "label": "control, readouts with own heads",
+     "role": "baseline",
+     "note": null
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-sharedreadout-shared-seed2-inet128-100k--2131f7a9a13f4e328bb84973b556d3b4",
+     "label": "shared un-embed R32+R64",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-sharedreadout-ladder3-seed2-inet128-100k--c974390cef874ddfbc9fc8011e6cfc3c",
+     "label": "ladder 16-32-64",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-sharedreadout-ladder7-seed2-inet128-100k--35783ac8a6314287a435f595d7b9155e",
+     "label": "ladder 1-64 px",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-sharedreadout-ladder7mean-seed2-inet128-100k--1c96670db825461ca74fe2f18ae6b72e",
+     "label": "ladder 1-64, weight 1/7",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-sharedreadout-ladder7mix-seed2-inet128-100k--76426f00691843d69ccd4b513aeb04c0",
+     "label": "ladder 1-64, 0.5/0.5 grad mix",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-sharedreadout-noreadout-seed2-inet128-100k--56c821fd7adc4182b9110774e001ed60",
+     "label": "no readout losses",
+     "role": "control",
+     "note": null
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-sharedreadout-finalpool-seed2-inet128-100k--2a61cfe8f75442a2adf867f5eae34cb4",
+     "label": "coarse loss on final output only",
+     "role": "treatment",
+     "note": null
+    }
+   ],
+   "verdict": "The readouts help FID by 6-8 but raise the final test loss: shared 138.1, ladder7mean 138.3, ladder7 139.4, ladder3 142.2, mix 142.9, none 144.6, final-pool 151.0 against 136.8 with heads.",
+   "sources": [
+    "imagenet-selfteach/unify3090/submit_pyramid.py",
+    "imagenet-selfteach/unify3090/score_pyramid.py",
+    "~/.claude/projects/-srv-agent/memory/fid-research-loop.md"
+   ]
+  },
+  {
+   "id": "best-recipe-width-scaling",
+   "title": "Best recipe from scratch, then width scaling",
+   "created": "2026-10-10",
+   "status": "done",
+   "question": "Does the loop-winning recipe (EMA teacher + self-teach output term) trained from scratch keep gaining FID with width (20M, 39M, 100M)?",
+   "falsifier": null,
+   "primary_metric": "fid_ema",
+   "score_steps": [
+    100000,
+    200000,
+    400000
+   ],
+   "baseline": "shared/unify-wclamp01-selfflow3to6-selfteach-200k-spark",
+   "runs": [
+    {
+     "run": "shared/unify-wclamp01-selfflow3to6-selfteach-200k-spark",
+     "label": "20M, 200k",
+     "role": "baseline",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-selfflow3to6-selfteach-wide-400k-spark",
+     "label": "39M wide, 400k",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-selfflow3to6-selfteach-100m-400k-spark",
+     "label": "100M, 400k",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-selfflow3to6-selfteach-xwide-400k-spark",
+     "label": "width 832 try",
+     "role": "treatment",
+     "note": "stopped before training (config only)"
+    },
+    {
+     "run": "shared/aborted-wronglr-unify-100m-400k-spark",
+     "label": "100M wrong lr",
+     "role": "treatment",
+     "note": "aborted at 600 steps (lr 1e-5 by mistake)"
+    }
+   ],
+   "verdict": "EMA FID at 100k / 200k / 400k: 20M 123.3 / 114.5; 39M 115.8 / 108.9 / 100.8; 100M 113.7 / 106.2 / 98.4. Width keeps helping, with smaller steps.",
+   "sources": [
+    "~/.claude/projects/-srv-agent/memory/fid-research-loop.md"
+   ]
+  },
+  {
+   "id": "selfteach-loop-3090",
+   "title": "Self-teach loop round 2 (3090)",
+   "created": "2026-10-10",
+   "status": "done",
+   "question": "Which self-teaching variant improves FID over the EMA-teacher baseline in short branches on the 3090?",
+   "falsifier": null,
+   "primary_metric": "fid_ema",
+   "score_steps": [],
+   "baseline": "wsl3090/stloop90-g0-control--619b05433f5a4b66b962ce5b0e1b3915",
+   "runs": [
+    {
+     "run": "wsl3090/stloop90-g0-control--619b05433f5a4b66b962ce5b0e1b3915",
+     "label": "g0-control",
+     "role": "baseline",
+     "note": null
+    },
+    {
+     "run": "wsl3090/stloop90-g0-st_z3--49a9643618604990b1ce4b524f54d346",
+     "label": "g0-st_z3",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/stloop90-g0-st_z3_out_only--82e3e35170b84c938f6db5fb4817f644",
+     "label": "g0-st_z3_out_only",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/stloop90-g1-st_flow_w2--65451d7670c94283acfc4a6fe6f2066b",
+     "label": "g1-st_flow_w2",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/stloop90-g1-st_inside_crop--9f38714e77f24aefb6d49328158ab722",
+     "label": "g1-st_inside_crop",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/stloop90-g1-st_judge_ema--d3e5b987be8c44eb8b0b033c1c48f7e5",
+     "label": "g1-st_judge_ema",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/stloop90-g1-st_judge_t07--e67ef333baea459190c170bb02287c0d",
+     "label": "g1-st_judge_t07",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/stloop90-g1-st_judge_t09--68c2e99f227d4c969fd50f3c498fb433",
+     "label": "g1-st_judge_t09",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/stloop90-g1-st_no_selfflow_teacher--1823ccfc1f534d0abd3769063a30e49a",
+     "label": "g1-st_no_selfflow_teacher",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/stloop90-g1-st_out_half--f26e9fbd6810422fa805d108f6ae6d16",
+     "label": "g1-st_out_half",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/stloop90-g1-st_out_w2--37a0f6f3ad3e4fdab63adddecae82ce1",
+     "label": "g1-st_out_w2",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/stloop90-g1-st_small_crop--5ffc8efbac3543c899942097be157d29",
+     "label": "g1-st_small_crop",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/stloop90-g1-st_whole_image--aac9bab8793443f384e60fca5d03a5c6",
+     "label": "g1-st_whole_image",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/stloop90-g1-st_wide_crop--3ec02408549245d2bc0f53e0392e0906",
+     "label": "g1-st_wide_crop",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/stloop90-g1-st_z1--48e12256566943149cfac0137e70f41a",
+     "label": "g1-st_z1",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/stloop90-g1-st_z3z6--d1e0b6dc54ef4a3490dfd9f2b958502e",
+     "label": "g1-st_z3z6",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/stloop90-g1-st_z4_out--cb5fc27198d44a949f6f1754526df4cf",
+     "label": "g1-st_z4_out",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/stloop90-g1-st_z6_out--815aeba7078042d2846fdc1d843e2e26",
+     "label": "g1-st_z6_out",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/stloop90-g1-st_z8--1922557af0c24bc0a7e1c66ba638cbc7",
+     "label": "g1-st_z8",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/stloop90-g1-st_z8_out_only--20a2426b0aaa4085ada776b18678f78c",
+     "label": "g1-st_z8_out_only",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/stloop90-g2-st_crop_02_05--1d1f448b2c184d9ca14d25c20f9ea8ad",
+     "label": "g2-st_crop_02_05",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/stloop90-g2-st_ctx_half--d30d6af598bf4ae4a0e0edcfcbe64d24",
+     "label": "g2-st_ctx_half",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/stloop90-g2-st_flow_w3--1dd340663aed491a9fb274069ae4c97c",
+     "label": "g2-st_flow_w3",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/stloop90-g2-st_flow_w4--e8ca5ba77b1f406faeb40f5b71a86180",
+     "label": "g2-st_flow_w4",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/stloop90-g2-st_out_w075--be30fce631f3476d8303aef77e6fa32b",
+     "label": "g2-st_out_w075",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/stloop90-g2-st_share40--c1190699284344769777eb1e7e8b49b7",
+     "label": "g2-st_share40",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/stloop90-g2-st_share60--b75638bc616e409baa21774f0f27899a",
+     "label": "g2-st_share60",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/stloop90-g2-st_small_crop_b--f15e60d68048484884f47647b3d9d2f0",
+     "label": "g2-st_small_crop_b",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/stloop90-g2-st_small_crop_share40--f9cbedb2c8ef468b962941193a994673",
+     "label": "g2-st_small_crop_share40",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/stloop90-g2-st_teach_noisy--03bb99abc68e4b77a7c89e47088f4551",
+     "label": "g2-st_teach_noisy",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/stloop90-g2-st_teacher_slow--6422dbb384d14b769afa41848f39c649",
+     "label": "g2-st_teacher_slow",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/stloop90-g2-st_tiny_crop_b--0eebd186d0104347905fc137b95c0374",
+     "label": "g2-st_tiny_crop_b",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/stloop90-g2-st_w4_small_crop--40d79f4103644e3bb895b72e71abfea4",
+     "label": "g2-st_w4_small_crop",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/stloop90-g3-st_crop_02_04--c544eb9187554e9fb5410177c1674348",
+     "label": "g3-st_crop_02_04",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/stloop90-g3-st_crop_02_07--036af75117ae4648ab9dd30d42c9031e",
+     "label": "g3-st_crop_02_07",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/stloop90-g3-st_crop_03_05--ca6049a9bee44deda6e55d263fc13d59",
+     "label": "g3-st_crop_03_05",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/stloop90-g3-st_crop_fixed_035--dbb0af48186b44eb9b0d6e62ce5031a9",
+     "label": "g3-st_crop_fixed_035",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/stloop90-g3-st_flow_w10--bcf07ce365fd4223928c1cd76bfbb633",
+     "label": "g3-st_flow_w10",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/stloop90-g3-st_flow_w4_c--8be9d8ace2004129b03177a0608c1e35",
+     "label": "g3-st_flow_w4_c",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/stloop90-g3-st_flow_w6--09064319dece465c96cbaaaad9662d0c",
+     "label": "g3-st_flow_w6",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/stloop90-g3-st_teacher_fast--04136e8510554c98b3003af8a0d9fc54",
+     "label": "g3-st_teacher_fast",
+     "role": "treatment",
+     "note": null
+    }
+   ],
+   "verdict": "Winner: output term alone at z3 (116.91 vs 124.57); second winner self-flow weight 2 (115.39). Kept recipe: EMA teacher, teach weight 2, z3 output term, crops 0.2-0.5 (ref 113.50).",
+   "sources": [
+    "imagenet-selfteach/unify3090/fid_loop.py",
+    "~/.claude/projects/-srv-agent/memory/fid-research-loop.md"
+   ]
+  },
+  {
+   "id": "selfteach-loop-spark",
+   "title": "Self-teach loop round 2 (Spark)",
+   "created": "2026-10-10",
+   "status": "done",
+   "question": "Which self-teaching variant (crop-rescaled clean/noised/output through the frozen network, block 3/6/last) improves FID over the EMA-teacher baseline in short branches?",
+   "falsifier": null,
+   "primary_metric": "fid_ema",
+   "score_steps": [],
+   "baseline": "shared/stloop-g0-control",
+   "runs": [
+    {
+     "run": "shared/stloop-g0-control",
+     "label": "g0-control",
+     "role": "baseline",
+     "note": null
+    },
+    {
+     "run": "shared/stloop-g0-st_z6",
+     "label": "g0-st_z6",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/stloop-g0-st_z6_out_only",
+     "label": "g0-st_z6_out_only",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/stloop-g1-st_flow_w2",
+     "label": "g1-st_flow_w2",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/stloop-g1-st_mild_crop",
+     "label": "g1-st_mild_crop",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/stloop-g1-st_no_selfflow_teacher",
+     "label": "g1-st_no_selfflow_teacher",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/stloop-g1-st_out_half",
+     "label": "g1-st_out_half",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/stloop-g1-st_out_w2",
+     "label": "g1-st_out_w2",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/stloop-g1-st_small_crop",
+     "label": "g1-st_small_crop",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/stloop-g1-st_z2",
+     "label": "g1-st_z2",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/stloop-g1-st_z3",
+     "label": "g1-st_z3",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/stloop-g1-st_z6_tenth",
+     "label": "g1-st_z6_tenth",
+     "role": "treatment",
+     "note": null
+    }
+   ],
+   "verdict": "Only winner: the output term alone (z6 116.08 vs control 122.52). The noised term harms; blocks 3/6/8 about equal; the self-flow teacher is still needed (119.51 without).",
+   "sources": [
+    "imagenet-selfteach/unify3090/fid_loop.py",
+    "~/.claude/projects/-srv-agent/memory/fid-research-loop.md"
+   ]
+  },
+  {
+   "id": "fid-loop-round1-3090",
+   "title": "FID research loop round 1 (3090)",
+   "created": "2026-10-10",
+   "status": "done",
+   "question": "Which parameter-free change (clean teacher, masked student, pairs, ctx weight) lowers FID in 16k-step branches on the 3090?",
+   "falsifier": "Pass margin: FID at least 1.5 below the control cycle.",
+   "primary_metric": "fid_ema",
+   "score_steps": [
+    116000
+   ],
+   "baseline": "wsl3090/fidloop90-g0-control--6d94659d828e47dcbbaa04aed91b74b8",
+   "runs": [
+    {
+     "run": "wsl3090/fidloop90-g0-control--6d94659d828e47dcbbaa04aed91b74b8",
+     "label": "g0-control",
+     "role": "baseline",
+     "note": null
+    },
+    {
+     "run": "wsl3090/fidloop90-g0-ctx_double--cd5b1504af224a3e8ae062b29e1a0ee7",
+     "label": "g0-ctx_double",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/fidloop90-g0-ctx_half--be2af7444eae432c9a593e0aa5a08d11",
+     "label": "g0-ctx_half",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/fidloop90-g0-ema_teacher--54054a49569a4503b70f2e96f7e48485",
+     "label": "g0-ema_teacher",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/fidloop90-g0-mask_student--4767a366e5c640dd855a2713dae4c4cd",
+     "label": "g0-mask_student",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/fidloop90-g0-pair_deep_target--46b0718f043e4baaa5b9e7297e5b9d75",
+     "label": "g0-pair_deep_target",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/fidloop90-g0-pairs_three--3bb68cbc689349c3bfe9c8a8109a106a",
+     "label": "g0-pairs_three",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/fidloop90-g0-teacher_clean--4bfd1769b64f4ec39e02835490072faa",
+     "label": "g0-teacher_clean",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/fidloop90-g1-mask_student--a0a1923dd33f46f09c490ee43ce5577b",
+     "label": "g1-mask_student",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/fidloop90-g1-no_selfflow--9dd89040a0724f4ca546155626c60317",
+     "label": "g1-no_selfflow",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/fidloop90-g1-out_align_1--c44084e0651e4cdaa43b4112158853f4",
+     "label": "g1-out_align_1",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/fidloop90-g1-readouts_double--a651f92454774dceacef4c37e5cb37e3",
+     "label": "g1-readouts_double",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/fidloop90-g1-teach_weight_half--353c7e184c154e8180e00cc5c19f8214",
+     "label": "g1-teach_weight_half",
+     "role": "treatment",
+     "note": null
+    }
+   ],
+   "verdict": "Only winner: EMA teacher (124.57 vs 126.78). Masked student, clean teacher, other pairs: worse; ctx weight flat.",
+   "sources": [
+    "imagenet-selfteach/unify3090/fid_loop.py",
+    "~/.claude/projects/-srv-agent/memory/fid-research-loop.md"
+   ]
+  },
+  {
+   "id": "fid-loop-round1-spark",
+   "title": "FID research loop round 1 (Spark)",
+   "created": "2026-10-09",
+   "status": "done",
+   "question": "Which parameter-free change to self-flow (EMA teacher, noisy share, teach weight, pairs, readouts) lowers FID in 16k-step branches from the seed-44 checkpoint?",
+   "falsifier": "Pass margin: FID at least 1.5 below the control cycle.",
+   "primary_metric": "fid_ema",
+   "score_steps": [
+    116000
+   ],
+   "baseline": "shared/fidloop-g0-control",
+   "runs": [
+    {
+     "run": "shared/fidloop-g0-control",
+     "label": "g0-control",
+     "role": "baseline",
+     "note": null
+    },
+    {
+     "run": "shared/fidloop-g0-ema_teacher",
+     "label": "g0-ema_teacher",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/fidloop-g1-block_layout",
+     "label": "g1-block_layout",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/fidloop-g1-ema_clean_teacher",
+     "label": "g1-ema_clean_teacher",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/fidloop-g1-ema_teacher_fast",
+     "label": "g1-ema_teacher_fast",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/fidloop-g1-ema_teacher_slow",
+     "label": "g1-ema_teacher_slow",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/fidloop-g1-no_mixed_noise",
+     "label": "g1-no_mixed_noise",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/fidloop-g1-no_teaching",
+     "label": "g1-no_teaching",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/fidloop-g1-noisy_eighth",
+     "label": "g1-noisy_eighth",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/fidloop-g1-noisy_half",
+     "label": "g1-noisy_half",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/fidloop-g1-out_align_half",
+     "label": "g1-out_align_half",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/fidloop-g1-out_align_tenth",
+     "label": "g1-out_align_tenth",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/fidloop-g1-pair_early",
+     "label": "g1-pair_early",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/fidloop-g1-pair_last",
+     "label": "g1-pair_last",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/fidloop-g1-readouts_double",
+     "label": "g1-readouts_double",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/fidloop-g1-readouts_half",
+     "label": "g1-readouts_half",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/fidloop-g1-sample_ema_fast",
+     "label": "g1-sample_ema_fast",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/fidloop-g1-sample_ema_slow",
+     "label": "g1-sample_ema_slow",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/fidloop-g1-teach_half_noisy",
+     "label": "g1-teach_half_noisy",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/fidloop-g1-teach_noisy_only",
+     "label": "g1-teach_noisy_only",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/fidloop-g1-teach_weight_2",
+     "label": "g1-teach_weight_2",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/fidloop-g1-teach_weight_half",
+     "label": "g1-teach_weight_half",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/fidloop-g1-teach_weight_quarter",
+     "label": "g1-teach_weight_quarter",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/fidloop-g1-weight_logflip",
+     "label": "g1-weight_logflip",
+     "role": "treatment",
+     "note": null
+    }
+   ],
+   "verdict": "Only winner: EMA teacher (124.39 vs 126.42). Weights, shares, decays, readouts, output alignment flat; other pairs, block layout worse.",
+   "sources": [
+    "imagenet-selfteach/unify3090/fid_loop.py",
+    "~/.claude/projects/-srv-agent/memory/fid-research-loop.md"
+   ]
+  },
+  {
+   "id": "eight-block-retest-100k",
+   "title": "8-block retest of the best directions (20M, 100k)",
+   "created": "2026-10-09",
+   "status": "done",
+   "question": "At 8 blocks x width 360, do self-flow, mixed noise, the logflip weight and the timestep shift still beat the clamp01 control?",
+   "falsifier": null,
+   "primary_metric": "fid",
+   "score_steps": [
+    25000,
+    50000,
+    75000,
+    100000
+   ],
+   "baseline": "shared/unify-wclamp01-control-100k-spark",
+   "runs": [
+    {
+     "run": "shared/unify-wclamp01-control-100k-spark",
+     "label": "control (clamp01)",
+     "role": "baseline",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-selfflow3to6-100k-spark",
+     "label": "self-flow 3 to 6",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-mixnoise-100k-spark",
+     "label": "mixed noise, no teacher",
+     "role": "control",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wlogflip-100k-spark",
+     "label": "logflip weight",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-tshift173-inet128-100k--a5c18bbe32514c32a5950eb948879666",
+     "label": "shift 1.73 (3090)",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-tshift346-inet128-100k--9484617850194d2fbb2b98ca715afba7",
+     "label": "shift 3.46 (3090)",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-control-inet128-100k--96e58c99a19d41ca88243bc76a5d45e3",
+     "label": "control (3090 copy)",
+     "role": "control",
+     "note": "cancelled (user: one control per series)"
+    }
+   ],
+   "verdict": "Control 134.7; self-flow 126.9; mixed noise alone gives about 2.5 of the 7.8 gain. Shift 1.73 135.4, 3.46 140.4 (3090 copy, which differs by about 5 FID from the Spark). Raw-weight FID.",
+   "sources": [
+    "~/.claude/projects/-srv-agent/memory/eight-block-retest.md",
+    "imagenet-selfteach/unify3090/queue.txt"
+   ]
+  },
+  {
+   "id": "selfflow-seed-check",
+   "title": "Self-flow seed check (seed 2, 3090)",
+   "created": "2026-10-09",
+   "status": "done",
+   "question": "Does the self-flow gain (126.9 vs 134.7 at seed 44 on the Spark) repeat with another seed?",
+   "falsifier": null,
+   "primary_metric": "fid",
+   "score_steps": [
+    25000,
+    50000,
+    75000,
+    100000
+   ],
+   "baseline": "wsl3090/unify-wclamp01-control-seed2-inet128-100k--3b58b666918542f8bf9baf400bf7e525",
+   "runs": [
+    {
+     "run": "wsl3090/unify-wclamp01-control-seed2-inet128-100k--3b58b666918542f8bf9baf400bf7e525",
+     "label": "control seed 2",
+     "role": "baseline",
+     "note": null
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-selfflow3to6-seed2-inet128-100k--4c4ab83f4cee43e291347bfb4e0343f7",
+     "label": "self-flow seed 2",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-control-100k-spark",
+     "label": "control seed 44 (Spark)",
+     "role": "control",
+     "note": null
+    },
+    {
+     "run": "shared/unify-wclamp01-selfflow3to6-100k-spark",
+     "label": "self-flow seed 44 (Spark)",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-control-seed3-inet128-100k--b308c9b44ab44764ad36edaae7ec3822",
+     "label": "control seed 3",
+     "role": "control",
+     "note": "cancelled (user: 2 seeds are enough)"
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-selfflow3to6-seed3-inet128-100k--0fc7bc8c5a1741d4b82cec3c493dfe49",
+     "label": "self-flow seed 3",
+     "role": "treatment",
+     "note": "cancelled (user: 2 seeds are enough)"
+    }
+   ],
+   "verdict": "Self-flow wins on both seeds: 130.1 vs 135.1 (seed 2), 126.9 vs 134.7 (seed 44). Raw-weight FID; EMA scores: 131.4 vs 136.8 (seed 2).",
+   "sources": [
+    "~/.claude/projects/-srv-agent/memory/fid-research-loop.md",
+    "imagenet-selfteach/unify3090/queue.txt"
+   ]
+  },
+  {
+   "id": "loss-weight-16x256",
+   "title": "Loss weight fix: log vs logflip vs clamp01 (16 x 256)",
+   "created": "2026-10-09",
+   "status": "done",
+   "question": "The old log weight weighted pure noise most; does a corrected weight (clamp01 or logflip) improve FID?",
+   "falsifier": null,
+   "primary_metric": "fid",
+   "score_steps": [
+    25000,
+    50000,
+    75000,
+    100000
+   ],
+   "baseline": "shared/unify-pyramid-16x256-broad15-wclamp01-100k-spark",
+   "runs": [
+    {
+     "run": "shared/unify-pyramid-16x256-broad15-wclamp01-100k-spark",
+     "label": "clamp01 (Spark)",
+     "role": "baseline",
+     "note": null
+    },
+    {
+     "run": "wsl3090/unify-pyramid-16x256-broad15-wlogflip-100k--de1209c008d44c26b72014ff9ccdd79a",
+     "label": "logflip (3090)",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/unify-pyramid-16x256-broad15-wclamp01-inet128-100k--d141e2aaa49f4271a32e3f248b8a4344",
+     "label": "clamp01 on imagenet128 (3090)",
+     "role": "control",
+     "note": null
+    },
+    {
+     "run": "wsl3090/unify-pyramid-16x256-broad15-tshift100-100k--bb77f6d5bb2f41d0ac923a4ce29bdb1f",
+     "label": "old log weight",
+     "role": "control",
+     "note": "cancelled before it ran"
+    },
+    {
+     "run": "wsl3090/unify-pyramid-16x256-broad15-wclamp01-100k--a1da550192834dee9b8822af0a114177",
+     "label": "clamp01 (3090, full images)",
+     "role": "treatment",
+     "note": "cancelled"
+    }
+   ],
+   "verdict": "clamp01 135 and logflip 136: equal within noise; the old log weight was about 2x worse on nearly clean inputs. clamp01 became the default. The 3090 copy on imagenet128 scored about 5 FID worse (140.1 vs 134.9).",
+   "sources": [
+    "~/.claude/projects/-srv-agent/memory/timestep-shift-ablation.md",
+    "~/.claude/projects/-srv-agent/memory/eight-block-retest.md"
+   ]
+  },
+  {
+   "id": "timestep-shift-16x256",
+   "title": "Timestep shift 3.46 (16 blocks x 256, 100k)",
+   "created": "2026-10-09",
+   "status": "done",
+   "question": "Does the train-time timestep shift alpha = 3.46 (Esser et al. 2024) improve FID at 128 px?",
+   "falsifier": null,
+   "primary_metric": "fid",
+   "score_steps": [
+    25000,
+    50000,
+    75000,
+    100000
+   ],
+   "baseline": "shared/unify-pyramid-16x256-broad15-wclamp01-100k-spark",
+   "runs": [
+    {
+     "run": "shared/unify-pyramid-16x256-broad15-wclamp01-100k-spark",
+     "label": "clamp01, no shift",
+     "role": "baseline",
+     "note": null
+    },
+    {
+     "run": "shared/unify-pyramid-16x256-broad15-wclamp01-tshift346-100k-spark",
+     "label": "clamp01 + shift 3.46",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/unify-pyramid-16x256-broad15-wlogflip-100k--de1209c008d44c26b72014ff9ccdd79a",
+     "label": "logflip, no shift (3090)",
+     "role": "control",
+     "note": null
+    },
+    {
+     "run": "shared/unify-pyramid-16x256-broad15-wlogflip-tshift346-100k-spark",
+     "label": "logflip + shift 3.46",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/unify-pyramid-16x256-broad15-tshift346-100k--cbac74f4441a4fb79708f53cfb2c0b05",
+     "label": "old log weight + shift 3.46",
+     "role": "treatment",
+     "note": "stopped at 55.5k; old weight backwards"
+    }
+   ],
+   "verdict": "The shift was about 9 FID worse with both weights (sampler not shifted). Not adopted as a default.",
+   "sources": [
+    "~/.claude/projects/-srv-agent/memory/timestep-shift-ablation.md",
+    "~/.claude/projects/-srv-agent/memory/eight-block-retest.md",
+    "imagenet-selfteach/unify3090/queue.txt"
+   ]
+  },
+  {
+   "id": "layer-teaching-77m",
+   "title": "Layer distillation and self-flow teaching (77M pyramid)",
+   "created": "2026-10-08",
+   "status": "done",
+   "question": "Does teaching an early block from a later block (same pass, or a teacher pass at lower noise) improve the 2x-width 2x-depth pyramid model?",
+   "falsifier": null,
+   "primary_metric": "fid",
+   "score_steps": [
+    100000,
+    200000
+   ],
+   "baseline": "shared/unify-pyramid-2x2x-broad15-100k-spark",
+   "runs": [
+    {
+     "run": "shared/unify-pyramid-2x2x-broad15-100k-spark",
+     "label": "pyramid 2x2x, no teaching",
+     "role": "baseline",
+     "note": null
+    },
+    {
+     "run": "shared/unify-pyramid-2x2x-broad15-distill6to12-200k-spark",
+     "label": "distill 6<-12 raw mse",
+     "role": "treatment",
+     "note": "diverged in 500 steps"
+    },
+    {
+     "run": "shared/unify-pyramid-2x2x-broad15-distill6to12-norm-200k-spark",
+     "label": "distill 6<-12 normalized",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/unify-pyramid-2x2x-broad15-selfflow6to12-200k-spark",
+     "label": "self-flow 6<-12",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/unify-pyramid-2x2x-broad15-distillchain0-6-12-16-200k-spark",
+     "label": "distill chain 0-6-12-16",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/unify-pyramid-2x2x-broad15-distilleach-w01-200k-spark",
+     "label": "distill every block, w 0.1",
+     "role": "treatment",
+     "note": null
+    }
+   ],
+   "verdict": "Normalized distill 6<-12 equals the control (FID 135 vs 136 at 200k; the teaching term had almost no pull). Self-flow was later named the best direction at 77M.",
+   "sources": [
+    "~/.claude/projects/-srv-agent/memory/overnight-2026-10-08.md",
+    "imagenet-selfteach/unify3090/queue.txt"
+   ]
+  },
+  {
+   "id": "ae-clustered-regularizer-batches",
+   "title": "AE clustered regularizer batches (3090)",
+   "created": "2026-10-08",
+   "status": "done",
+   "question": "Do regularizer steps on clusters of nearby latents stop the AE latent from organizing by color?",
+   "falsifier": null,
+   "primary_metric": "test_clean",
+   "score_steps": [
+    60000
+   ],
+   "baseline": "wsl3090/ae_25M_selfteach_imagenet_128_MOcrop_ww005_ctrl--135a3baed1654b709555867437191b82",
+   "runs": [
+    {
+     "run": "wsl3090/ae_25M_selfteach_imagenet_128_MOcrop_ww005_ctrl--135a3baed1654b709555867437191b82",
+     "label": "baseline AE",
+     "role": "baseline",
+     "note": null
+    },
+    {
+     "run": "wsl3090/ae_25M_selfteach_imagenet_128_MOcrop_cluster5--d2a8b5db97a54f50ae1e04e7859b9497",
+     "label": "cluster step every 5",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/ae_25M_selfteach_imagenet_128_MOcrop_cluster1--b2785ced730e468e843a96bb1bedbb2e",
+     "label": "cluster step every step",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/ae_25M_selfteach_imagenet_128_MOcrop_clusterseeds5--dc288ed0225f4124bb18a9bd50af1be8",
+     "label": "10 tracked seeds, every 5",
+     "role": "treatment",
+     "note": null
+    }
+   ],
+   "verdict": "The hypothesis holds on the neighbor metrics (nn_color_ratio 1.18 vs 0.59, rank 258 vs 89 at 60k) at some reconstruction cost (0.0085 vs 0.0066); every-step clustering costs far too much (0.0311).",
+   "sources": [
+    "~/.claude/projects/-srv-agent/memory/overnight-2026-10-08.md"
+   ]
+  },
+  {
+   "id": "pyramid-sample-jitter-probes",
+   "title": "Sample jitter probes from the pyramid 100k checkpoint",
+   "created": "2026-10-07",
+   "status": "done",
+   "question": "Why do fixed-seed samples swing between blurry and detailed within a few hundred steps, and does lr or EMA steady them?",
+   "falsifier": null,
+   "primary_metric": "test_clean",
+   "score_steps": [],
+   "baseline": "shared/unify-pyramid-2x2x-broad15-100k-spark",
+   "runs": [
+    {
+     "run": "shared/unify-pyramid-2x2x-broad15-100k-spark",
+     "label": "parent run",
+     "role": "baseline",
+     "note": null
+    },
+    {
+     "run": "shared/unify-pyramid-2x2x-broad15-100k-spark-probe",
+     "label": "probe",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/unify-pyramid-2x2x-broad15-100k-spark-probe-lr1e-5",
+     "label": "probe-lr1e-5",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/unify-pyramid-2x2x-broad15-100k-spark-probe-lr3e-5",
+     "label": "probe-lr3e-5",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/unify-pyramid-2x2x-broad15-100k-spark-probe-weights",
+     "label": "probe-weights",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/unify-pyramid-2x2x-broad15-100k-spark-probe2-lr1e-4",
+     "label": "probe2-lr1e-4",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/unify-pyramid-2x2x-broad15-100k-spark-probe2-lr1e-5",
+     "label": "probe2-lr1e-5",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/unify-pyramid-2x2x-broad15-100k-spark-probe2-lr3e-5",
+     "label": "probe2-lr3e-5",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/unify-pyramid-2x2x-broad15-100k-spark-probe3-diff",
+     "label": "probe3-diff",
+     "role": "treatment",
+     "note": null
+    }
+   ],
+   "verdict": "Raw-weight samples swing within 200 steps; EMA weights steady them. Judge samples and FID from averaged weights.",
+   "sources": [
+    "~/.claude/projects/-srv-agent/memory/pixel-sample-jitter-ema.md"
+   ]
+  },
+  {
+   "id": "latent-flow-on-multires-ae",
+   "title": "Latent flow model on the multi-res AE",
+   "created": "2026-10-07",
+   "status": "done",
+   "question": "Does the latent flow notebook (24 blocks, XM 3 of 6) train at 128 px on the AE exported from the multi-resolution run?",
+   "falsifier": null,
+   "primary_metric": "test_clean",
+   "score_steps": [],
+   "baseline": null,
+   "runs": [
+    {
+     "run": "shared/lf_imagenet_multires_ae_xm6_24L",
+     "label": "LF 24L XM6 on mri AE (231k)",
+     "role": "treatment",
+     "note": null
+    }
+   ],
+   "verdict": null,
+   "sources": [
+    "~/.claude/projects/-srv-agent/memory/flow-spark-runner.md"
+   ]
+  },
+  {
+   "id": "ae-projection-head-regularizer",
+   "title": "AE regularizer on a projection head (SWD, SIGReg, LeJEPA)",
+   "created": "2026-10-07",
+   "status": "done",
+   "question": "Can the latent regularizer move onto a learned JEPA-style projection head (SWD, SIGReg, exact LeJEPA) without collapse?",
+   "falsifier": null,
+   "primary_metric": "test_clean",
+   "score_steps": [],
+   "baseline": "wsl3090/2026-10-03_082436_266657_ae_25M_selfteach_imagenet_128_MOcrop_ww005--nb-49feb70098cd3bc3cc3775b34aa0",
+   "runs": [
+    {
+     "run": "wsl3090/2026-10-03_082436_266657_ae_25M_selfteach_imagenet_128_MOcrop_ww005--nb-49feb70098cd3bc3cc3775b34aa0",
+     "label": "notebook AE, 4 z regs",
+     "role": "baseline",
+     "note": null
+    },
+    {
+     "run": "wsl3090/ae_25M_selfteach_imagenet_128_MOcrop_projswd--8bbd866035184d89b80fed64c36bd038",
+     "label": "SWD on head",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/ae_25M_selfteach_imagenet_128_MOcrop_projsigreg--21d024b986ab4fec8c6c2b5594688741",
+     "label": "SIGReg on head",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/ae_25M_selfteach_imagenet_128_MOcrop_lejepa--28fbf85000584c70928f21beff848248",
+     "label": "LeJEPA loss copy",
+     "role": "treatment",
+     "note": null
+    }
+   ],
+   "verdict": "SWD and SIGReg on the head collapsed from the start (static texture, z spread 2e-4); BatchNorm in the head likely hides the scale of z.",
+   "sources": [
+    "~/.claude/projects/-srv-agent/memory/ae-projswd-3090.md"
+   ]
+  },
+  {
+   "id": "pyramid-readouts",
+   "title": "Pyramid readouts vs plain model",
+   "created": "2026-10-07",
+   "status": "done",
+   "question": "Do pyramid readouts (after the Linum pyramid-JiT note) improve the plain notebook model, at 8 x 256 and at 2x width and depth?",
+   "falsifier": null,
+   "primary_metric": "fid",
+   "score_steps": [
+    100000
+   ],
+   "baseline": "shared/unify-plain-100k-spark",
+   "runs": [
+    {
+     "run": "shared/unify-plain-100k-spark",
+     "label": "plain 8 x 256",
+     "role": "baseline",
+     "note": null
+    },
+    {
+     "run": "shared/unify-pyramid-100k-spark",
+     "label": "pyramid 8 x 256",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/unify-plain-2x2x-broad15-100k-spark",
+     "label": "plain 2x2x broad15",
+     "role": "control",
+     "note": "stopped at 32.6k"
+    },
+    {
+     "run": "shared/unify-pyramid-2x2x-broad15-100k-spark",
+     "label": "pyramid 2x2x broad15",
+     "role": "treatment",
+     "note": "continued to 400k"
+    }
+   ],
+   "verdict": null,
+   "sources": [
+    "DESCRIPTION.md of unify-plain-100k-spark and unify-plain-2x2x-broad15-100k-spark",
+    "~/.claude/projects/-srv-agent/memory/gen-eval-scores.md"
+   ]
+  },
+  {
+   "id": "looped-middle-xsa",
+   "title": "Looped sparse middle with XSA",
+   "created": "2026-10-06",
+   "status": "done",
+   "question": "Does a looped shared-weight middle (4 loops, deep supervision) with or without XSA match the plain 8-block model at 100k?",
+   "falsifier": null,
+   "primary_metric": "test_clean",
+   "score_steps": [
+    100000
+   ],
+   "baseline": "shared/unify-plain-100k-spark",
+   "runs": [
+    {
+     "run": "shared/unify-plain-100k-spark",
+     "label": "plain 8 blocks (reference)",
+     "role": "baseline",
+     "note": null
+    },
+    {
+     "run": "wsl3090/unify-loop4-xsa-100k--82423bde94fd4187a780ded248eee228",
+     "label": "loop 4, XSA",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/unify-loop4-noxsa-100k--bd4406267f9c4061b41ca307ee2dc2a4",
+     "label": "loop 4, no XSA",
+     "role": "treatment",
+     "note": "cancelled at 35.7k"
+    },
+    {
+     "run": "shared/unify-loop4-xsa-noskip-100k-spark",
+     "label": "loop 4, XSA, no skip",
+     "role": "treatment",
+     "note": null
+    }
+   ],
+   "verdict": "XSA vs no XSA: same loss within 0.7%; the looped middle is ignored either way.",
+   "sources": [
+    "~/.claude/projects/-srv-agent/memory/unify-xm-series-3090.md",
+    "DESCRIPTION.md of unify-plain-100k-spark"
+   ]
+  },
+  {
+   "id": "model-2x-depth-vs-width",
+   "title": "2x model: depth vs width (3090, 100k)",
+   "created": "2026-10-06",
+   "status": "done",
+   "question": "Which 2x scale-up of the notebook pixel model (16 blocks or double width) learns better at 100k?",
+   "falsifier": null,
+   "primary_metric": "test_clean",
+   "score_steps": [
+    100000
+   ],
+   "baseline": "wsl3090/unify-2x-xm1-100k--4bf582836c8f49378f3e33047cbeeb8c",
+   "runs": [
+    {
+     "run": "wsl3090/unify-2x-xm1-100k--4bf582836c8f49378f3e33047cbeeb8c",
+     "label": "16 blocks x 256",
+     "role": "baseline",
+     "note": null
+    },
+    {
+     "run": "wsl3090/unify-2xwidth-100k--5632f8b9abb5447cbb8ccd3b8788f402",
+     "label": "double width",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/unify-2x-xm1-400k--c2db57e8ae4646fea75e6e7ee20462b2",
+     "label": "16 blocks, 400k",
+     "role": "treatment",
+     "note": "cancelled at 162k"
+    }
+   ],
+   "verdict": "Test loss at 100k: double width 0.03463, 16 blocks 0.03494 (one run each).",
+   "sources": [
+    "~/.claude/projects/-srv-agent/memory/unify-xm-series-3090.md"
+   ]
+  },
+  {
+   "id": "xm-best-of-k-30k",
+   "title": "XM best-of-k series (3090, 30k)",
+   "created": "2026-10-05",
+   "status": "done",
+   "question": "Does training on the best of 2 or 3 noise draws per image (XM) converge faster than the notebook baseline in 30k steps?",
+   "falsifier": null,
+   "primary_metric": "test_clean",
+   "score_steps": [
+    10000,
+    20000,
+    30000
+   ],
+   "baseline": "wsl3090/unify-xm1-baseline--21cd6ddd0b114d0fa4ef7a8f7bd8c233",
+   "runs": [
+    {
+     "run": "wsl3090/unify-xm1-baseline--21cd6ddd0b114d0fa4ef7a8f7bd8c233",
+     "label": "baseline",
+     "role": "baseline",
+     "note": null
+    },
+    {
+     "run": "wsl3090/unify-xm2-best-of-2--023285f11d064ed8b34e07656c358e7b",
+     "label": "XM best of 2",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/unify-xm3-best-of-3--1935a4869fbc4216b4c7957864225289",
+     "label": "XM best of 3",
+     "role": "treatment",
+     "note": null
+    }
+   ],
+   "verdict": "No consistent change: test loss 0.03698 / 0.03673 / 0.03672 at 30k; fd_ae order flips between steps. Baseline was scaled up instead.",
+   "sources": [
+    "~/.claude/projects/-srv-agent/memory/unify-xm-series-3090.md",
+    "imagenet-selfteach/unify3090/submit_series.py"
+   ]
+  },
+  {
+   "id": "superseded-attempts",
+   "title": "Superseded 3090 attempts",
+   "created": "2026-10-05",
+   "status": "done",
+   "question": null,
+   "falsifier": null,
+   "primary_metric": "none",
+   "score_steps": [],
+   "baseline": null,
+   "runs": [
+    {
+     "run": "wsl3090/ae_25M_selfteach_imagenet_128_MOcrop_projswd--564d8715aefa458490d38ba9616284bd",
+     "label": "ae_25M_selfteach_imagenet_128_MOcrop_projswd",
+     "role": "treatment",
+     "note": "killed at step 800; kept attempt: 8bbd8660"
+    },
+    {
+     "run": "wsl3090/fidloop90-g0-ctx_double--d495bdb320974fa88bf5503e91368d5f",
+     "label": "fidloop90-g0-ctx_double",
+     "role": "treatment",
+     "note": "done at step 116000; kept attempt: cd5b1504"
+    },
+    {
+     "run": "wsl3090/fidloop90-g0-ctx_half--e0e5c5994ac6495187e019d9660c6959",
+     "label": "fidloop90-g0-ctx_half",
+     "role": "treatment",
+     "note": "done at step 116000; kept attempt: be2af744"
+    },
+    {
+     "run": "wsl3090/fidloop90-g0-pair_deep_target--7ab915933b1947fa914b8b60d708c23a",
+     "label": "fidloop90-g0-pair_deep_target",
+     "role": "treatment",
+     "note": "done at step 116000; kept attempt: 46b0718f"
+    },
+    {
+     "run": "wsl3090/fidloop90-g0-pairs_three--b3df294bb13143588dfb59ede93bfb26",
+     "label": "fidloop90-g0-pairs_three",
+     "role": "treatment",
+     "note": "done at step 116000; kept attempt: 3bb68cbc"
+    },
+    {
+     "run": "wsl3090/unify-pyramid-16x256-broad15-wclamp01-100k--c798b029040249b096f47a3c9ba4bb33",
+     "label": "unify-pyramid-16x256-broad15-wclamp01-100k",
+     "role": "treatment",
+     "note": "killed at step None; kept attempt: a1da5501"
+    },
+    {
+     "run": "wsl3090/unify-pyramid-16x256-broad15-wclamp01-inet128-100k--7ae517afe899456384540f2d9c1a6669",
+     "label": "unify-pyramid-16x256-broad15-wclamp01-inet128-100k",
+     "role": "treatment",
+     "note": "failed at step None; kept attempt: d141e2aa"
+    },
+    {
+     "run": "wsl3090/unify-pyramid-16x256-broad15-wlogflip-100k--77cf06f2cce44a85a7b594d90537c667",
+     "label": "unify-pyramid-16x256-broad15-wlogflip-100k",
+     "role": "treatment",
+     "note": "killed at step None; kept attempt: de1209c0"
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-cond-seed2-inet128-100k--4a40c3af7b9d492d9d297c649109cc31",
+     "label": "unify-wclamp01-cond-seed2-inet128-100k",
+     "role": "treatment",
+     "note": "failed at step 9900; kept attempt: b65aa96e"
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-control-seed2-inet128-450k--47e65e63b7ce4f558cb715566c5a16a1",
+     "label": "unify-wclamp01-control-seed2-inet128-450k",
+     "role": "treatment",
+     "note": "killed at step 402000; kept attempt: a3883ad9"
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-control-seed2-inet128-450k--b02aea292b6f4b229b2925f18ecef1f4",
+     "label": "unify-wclamp01-control-seed2-inet128-450k",
+     "role": "treatment",
+     "note": "killed at step 105300; kept attempt: a3883ad9"
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-control-seed2-inet128-450k--c7a16170e84e433e86c50c8184590646",
+     "label": "unify-wclamp01-control-seed2-inet128-450k",
+     "role": "treatment",
+     "note": "killed at step 17000; kept attempt: a3883ad9"
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-distill2train-w1st-seed2-inet128-100k--36accce8362c446d9131ff9452f37f54",
+     "label": "unify-wclamp01-distill2train-w1st-seed2-inet128-100k",
+     "role": "treatment",
+     "note": "killed at step None; kept attempt: 1d221c52"
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-jitnoise-pure5-seed2-inet128-100k--6a7a7413c8d24be1b18975e25eda19c6",
+     "label": "unify-wclamp01-jitnoise-pure5-seed2-inet128-100k",
+     "role": "treatment",
+     "note": "killed at step None; kept attempt: 8c11fbb2"
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-moe16-bucket-from50k-seed2-inet128-100k--fdfe05034e2943a4a4ab4ef7515c2057",
+     "label": "unify-wclamp01-moe16-bucket-from50k-seed2-inet128-100k",
+     "role": "treatment",
+     "note": "killed at step None; kept attempt: eed7a430"
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-moe16-bucket-seed2-inet128-100k--4e18c9af2a3b4179b65ff75a6bd1addd",
+     "label": "unify-wclamp01-moe16-bucket-seed2-inet128-100k",
+     "role": "treatment",
+     "note": "killed at step None; kept attempt: c7ac7a4d"
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-moe16-bucket-seed2-inet128-100k--a3a57e1d4f9f4295bcc1bf2efc7af459",
+     "label": "unify-wclamp01-moe16-bucket-seed2-inet128-100k",
+     "role": "treatment",
+     "note": "killed at step None; kept attempt: c7ac7a4d"
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-moe16-choice-seed2-inet128-100k--2fdeab3c0ed84749b405016018e5e6a2",
+     "label": "unify-wclamp01-moe16-choice-seed2-inet128-100k",
+     "role": "treatment",
+     "note": "killed at step None; kept attempt: 410bb965"
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-moe16-choice-seed2-inet128-100k--892bbe86138a4e08b45886e51f84446a",
+     "label": "unify-wclamp01-moe16-choice-seed2-inet128-100k",
+     "role": "treatment",
+     "note": "killed at step None; kept attempt: 410bb965"
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-moe32-bucket-from50k-seed2-inet128-100k--2d56029b38fc4583a253160e741959e9",
+     "label": "unify-wclamp01-moe32-bucket-from50k-seed2-inet128-100k",
+     "role": "treatment",
+     "note": "failed at step None; kept attempt: 7dc74626"
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-moe32-bucket-from50k-seed2-inet128-100k--dae1b229f79d40cdb895f7bea3ec933d",
+     "label": "unify-wclamp01-moe32-bucket-from50k-seed2-inet128-100k",
+     "role": "treatment",
+     "note": "killed at step 87000; kept attempt: 7dc74626"
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-moe32-bucket-seed2-inet128-100k--85f838fa56f848cd9d261d0c8598725d",
+     "label": "unify-wclamp01-moe32-bucket-seed2-inet128-100k",
+     "role": "treatment",
+     "note": "killed at step None; kept attempt: 883253ae"
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-moe32-bucket-seed2-inet128-100k--995c71f177f34ab7a6e28a4e4449f4da",
+     "label": "unify-wclamp01-moe32-bucket-seed2-inet128-100k",
+     "role": "treatment",
+     "note": "killed at step None; kept attempt: 883253ae"
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-moe32-choice-seed2-inet128-100k--3c88707e17f040378fee207df98f584b",
+     "label": "unify-wclamp01-moe32-choice-seed2-inet128-100k",
+     "role": "treatment",
+     "note": "killed at step None; kept attempt: 1d7d4317"
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-moe32-choice-seed2-inet128-100k--f4c61abbe3654eb395d8fdcb19555c71",
+     "label": "unify-wclamp01-moe32-choice-seed2-inet128-100k",
+     "role": "treatment",
+     "note": "killed at step None; kept attempt: 1d7d4317"
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-moe4-bucket-seed2-inet128-100k--274a9dd7bc564f05bead5ce5ed234110",
+     "label": "unify-wclamp01-moe4-bucket-seed2-inet128-100k",
+     "role": "treatment",
+     "note": "killed at step None; kept attempt: 57eef26b"
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-moe4-bucket-seed2-inet128-100k--6edec1734f0548fba8edcb95677942b5",
+     "label": "unify-wclamp01-moe4-bucket-seed2-inet128-100k",
+     "role": "treatment",
+     "note": "killed at step None; kept attempt: 57eef26b"
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-moe4-choice-seed2-inet128-100k--6f1450e58a4941d98f95b23ce98b275e",
+     "label": "unify-wclamp01-moe4-choice-seed2-inet128-100k",
+     "role": "treatment",
+     "note": "killed at step None; kept attempt: 81ddfac9"
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-moe4-choice-seed2-inet128-100k--947222e32ad440159b891189b4b563b9",
+     "label": "unify-wclamp01-moe4-choice-seed2-inet128-100k",
+     "role": "treatment",
+     "note": "killed at step None; kept attempt: 81ddfac9"
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-msa-long-shared-seed2-inet128-150k--45f982bc904f4a62815a8bbd75dd0aab",
+     "label": "unify-wclamp01-msa-long-shared-seed2-inet128-150k",
+     "role": "treatment",
+     "note": "killed at step 147600; kept attempt: 30fc0cd1"
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-msa-long-shared-seed2-inet128-150k--4d867e90b2854269bbf0e551135e2298",
+     "label": "unify-wclamp01-msa-long-shared-seed2-inet128-150k",
+     "role": "treatment",
+     "note": "killed at step 0; kept attempt: 30fc0cd1"
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-selfflow3to6-seed2-inet128-100k--ef11ff5033f4448ba88b8bb1f474625b",
+     "label": "unify-wclamp01-selfflow3to6-seed2-inet128-100k",
+     "role": "treatment",
+     "note": "killed at step None; kept attempt: 4c4ab83f"
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-selfflow3to6-wreg6-seed2-inet128-100k--b306ac8363a545b7bbc7b6a989c5eec5",
+     "label": "unify-wclamp01-selfflow3to6-wreg6-seed2-inet128-100k",
+     "role": "treatment",
+     "note": "killed at step 23900; kept attempt: 547f88a8"
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-sharedreadout-finalpool-seed2-inet128-100k--8b8785aa184f4d10bdd6db3650b1df8c",
+     "label": "unify-wclamp01-sharedreadout-finalpool-seed2-inet128-100k",
+     "role": "treatment",
+     "note": "failed at step None; kept attempt: 2a61cfe8"
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-sharedreadout-finalpool-seed2-inet128-100k--e7b5fff14b7743039598ec9ef2773547",
+     "label": "unify-wclamp01-sharedreadout-finalpool-seed2-inet128-100k",
+     "role": "treatment",
+     "note": "failed at step 2000; kept attempt: 2a61cfe8"
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-sharedreadout-ladder7-seed2-inet128-100k--22df609a71204626be4e40be28ac650c",
+     "label": "unify-wclamp01-sharedreadout-ladder7-seed2-inet128-100k",
+     "role": "treatment",
+     "note": "failed at step None; kept attempt: 35783ac8"
+    },
+    {
+     "run": "wsl3090/unify-wclamp01-xmgroup4-seed2-inet128-100k--a9828aaf3f6441e0b8376194b841667f",
+     "label": "unify-wclamp01-xmgroup4-seed2-inet128-100k",
+     "role": "treatment",
+     "note": "failed at step 19800; kept attempt: aa80f75a"
+    },
+    {
+     "run": "wsl3090/unify-wlog-control-seed2-inet128-100k--6c44ba551e2e4c74a619d2751923edbb",
+     "label": "unify-wlog-control-seed2-inet128-100k",
+     "role": "treatment",
+     "note": "killed at step None; kept attempt: 2076c33a"
+    },
+    {
+     "run": "wsl3090/unify-wlog-control-seed2-inet128-100k--c951fd82ef71481d9ad369e98c8ecb90",
+     "label": "unify-wlog-control-seed2-inet128-100k",
+     "role": "treatment",
+     "note": "killed at step None; kept attempt: 2076c33a"
+    },
+    {
+     "run": "wsl3090/unify-xm1-baseline--2bf86223690043faa649db14f34d8ae5",
+     "label": "unify-xm1-baseline",
+     "role": "treatment",
+     "note": "killed at step None; kept attempt: 21cd6ddd"
+    },
+    {
+     "run": "wsl3090/unify-xm1-baseline--bb736c0031bc45d290ed508687ea6db4",
+     "label": "unify-xm1-baseline",
+     "role": "treatment",
+     "note": "killed at step None; kept attempt: 21cd6ddd"
+    },
+    {
+     "run": "wsl3090/unify-xm2-best-of-2--3436f958bd2a4abcadf210341e1d98f3",
+     "label": "unify-xm2-best-of-2",
+     "role": "treatment",
+     "note": "killed at step 9600; kept attempt: 023285f1"
+    },
+    {
+     "run": "wsl3090/unify-xm2-best-of-2--f4c5e0ae83bb4d72984afb830d877639",
+     "label": "unify-xm2-best-of-2",
+     "role": "treatment",
+     "note": "killed at step None; kept attempt: 023285f1"
+    },
+    {
+     "run": "wsl3090/unify-xm3-best-of-3--15061fb8f5aa4b91b261eb76b21f9312",
+     "label": "unify-xm3-best-of-3",
+     "role": "treatment",
+     "note": "killed at step 5500; kept attempt: 1935a486"
+    }
+   ],
+   "verdict": null,
+   "sources": [
+    "3090 runs with the same name and a later attempt"
+   ]
+  },
+  {
+   "id": "scaleup-freeze-ablation",
+   "title": "Freeze ablation after a 64 to 128 px scale-up",
+   "created": "2026-10-04",
+   "status": "done",
+   "question": "Which modules must re-learn after a scale-up, and does freezing the rest save wall-clock time?",
+   "falsifier": null,
+   "primary_metric": "test_clean",
+   "score_steps": [],
+   "baseline": "shared/2026-10-04_085623_028179_u64at100k_128",
+   "runs": [
+    {
+     "run": "shared/2026-10-04_085623_028179_u64at100k_128",
+     "label": "full training (u64at100k)",
+     "role": "baseline",
+     "note": null
+    },
+    {
+     "run": "shared/2026-10-04_191247_354625_fz100k_zproj",
+     "label": "100k_zproj",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/2026-10-04_194953_745785_fz100k_dec",
+     "label": "100k_dec",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/2026-10-04_203112_496134_fz100k_attn",
+     "label": "100k_attn",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/2026-10-04_211815_068433_fz100k_gains",
+     "label": "100k_gains",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/2026-10-04_220332_316622_fz100k_iface",
+     "label": "100k_iface",
+     "role": "treatment",
+     "note": null
+    }
+   ],
+   "verdict": "Freezing saves only 15-50% step time and costs more steps than it saves.",
+   "sources": [
+    "~/.claude/projects/-srv-agent/memory/scale-experiment.md"
+   ]
+  },
+  {
+   "id": "resolution-scaling-ae",
+   "title": "AE resolution scaling (Spark)",
+   "created": "2026-10-03",
+   "status": "done",
+   "question": "What is the fastest wall-clock route to a high-resolution AE by training at lower resolution first, and what has to re-learn after a scale-up?",
+   "falsifier": null,
+   "primary_metric": "test_clean",
+   "score_steps": [],
+   "baseline": "shared/2026-10-03_133758_520767_r32",
+   "runs": [
+    {
+     "run": "shared/2026-10-03_133758_520767_r32",
+     "label": "32 px reference",
+     "role": "baseline",
+     "note": null
+    },
+    {
+     "run": "shared/2026-10-03_235842_766253_r64",
+     "label": "64 px reference",
+     "role": "control",
+     "note": null
+    },
+    {
+     "run": "shared/2026-10-03_191701_951839_u32at025k_64",
+     "label": "2at025k_64",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/2026-10-03_205119_936489_u32at050k_64",
+     "label": "2at050k_64",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/2026-10-03_222452_890085_u32at100k_64",
+     "label": "2at100k_64",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/2026-10-04_062339_477412_u64at025k_128",
+     "label": "4at025k_128",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/2026-10-04_073234_378642_u64at050k_128",
+     "label": "4at050k_128",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/2026-10-04_085623_028179_u64at100k_128",
+     "label": "4at100k_128",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/2026-10-04_225409_806708_u128at180k_256",
+     "label": "28at180k_256",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/2026-10-05_092917_070479_p32at180k_256",
+     "label": "2at180k_256",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/2026-10-05_121820_962272_mri64x16_128x4_256",
+     "label": "i64x16_128x4_256",
+     "role": "treatment",
+     "note": null
+    }
+   ],
+   "verdict": "64 px at 25k scaled to 128 px reached test MSE 0.0066 2.15x faster than 128 px from scratch; late switches adapt in about 1k steps but are slower overall.",
+   "sources": [
+    "~/.claude/projects/-srv-agent/memory/scale-experiment.md"
+   ]
+  },
+  {
+   "id": "imagenet-ae-crops-and-ww",
+   "title": "ImageNet AE: crop modes and regularizer weight (notebook)",
+   "created": "2026-10-03",
+   "status": "done",
+   "question": "Which crop mode (basic, masked overhanging, MO) and Wasserstein weight (0.3 vs 0.05) suit the 25M self-teach AE on ImageNet 128/256 px?",
+   "falsifier": null,
+   "primary_metric": "test_clean",
+   "score_steps": [],
+   "baseline": null,
+   "runs": [
+    {
+     "run": "shared/2026-10-02_221527_524159_ae_25M_selfteach_imagenet_128_maskcrop_ww03",
+     "label": "_25M_selfteach_imagenet_128_maskcrop_ww03",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/2026-10-03_084813_064960_ae_25M_selfteach_imagenet_256_maskcrop_ww03",
+     "label": "_25M_selfteach_imagenet_256_maskcrop_ww03",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/2026-10-02_125628_764657_ae_25M_selfteach_imagenet_128--nb-379e973feacd4395a756ae944189",
+     "label": "_25M_selfteach_imagenet_128",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/2026-10-02_135038_577282_ae_25M_selfteach_imagenet_128_basic_crop--nb-9be52fabf9b03dce8c7505ee28a8",
+     "label": "_25M_selfteach_imagenet_128_basic_crop",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/2026-10-02_141154_904255_ae_25M_selfteach_imagenet_128_basic_crop_ww03--nb-49673233eabc3d4a7bb9d139b913",
+     "label": "_25M_selfteach_imagenet_128_basic_crop_ww03",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/2026-10-02_165317_618200_ae_25M_selfteach_imagenet_128_basic_crop_ww005--nb-9ae467739f803137eed05016f048",
+     "label": "_25M_selfteach_imagenet_128_basic_crop_ww005",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/2026-10-02_191240_057178_ae_25M_selfteach_imagenet_128_MOcrop_ww005--nb-496c503c3acb6c401b7998df81c8",
+     "label": "_25M_selfteach_imagenet_128_MOcrop_ww005",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/2026-10-03_082436_266657_ae_25M_selfteach_imagenet_128_MOcrop_ww005--nb-49feb70098cd3bc3cc3775b34aa0",
+     "label": "_25M_selfteach_imagenet_128_MOcrop_ww005",
+     "role": "treatment",
+     "note": null
+    }
+   ],
+   "verdict": null,
+   "sources": [
+    "run names (notebook runs, no DESCRIPTION)",
+    "~/.claude/projects/-srv-agent/memory/runner-3090-256px.md"
+   ]
+  },
+  {
+   "id": "runner-3090-infra",
+   "title": "3090 runner infrastructure jobs",
+   "created": "2026-10-03",
+   "status": "done",
+   "question": null,
+   "falsifier": null,
+   "primary_metric": "none",
+   "score_steps": [],
+   "baseline": null,
+   "runs": [
+    {
+     "run": "wsl3090/ae_25M_selfteach_imagenet_256_maskcrop_ww03--2884567af80f4ee7ac7ceb18fd89eada",
+     "label": "ae_25M_selfteach_imagenet_256_maskcrop_ww03",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/cancel-probe--0e09775adc95442083c3467d1808ef8d",
+     "label": "cancel-probe",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/cancel-probe--7ed9b583d9b545d1a0f38a4b74cc48fc",
+     "label": "cancel-probe",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/gpu-and-dataset-smoke--b6f90eadfeb94b9da9af55260312c433",
+     "label": "gpu-and-dataset-smoke",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/gpu-and-dataset-smoke--d00cbcadced8462e96a2a4752fff3c8b",
+     "label": "gpu-and-dataset-smoke",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/interrupted-resume-purge-smoke--7d0916d347f34088a422b29c4364d799",
+     "label": "interrupted-resume-purge-smoke",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/isolation-smoke--cc1d4505e97a492db7436b4372121686",
+     "label": "isolation-smoke",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/isolation-smoke-v2--bc91e323b8624a568702421569ff40fe",
+     "label": "isolation-smoke-v2",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/probe-256-prep--a886e19f882541d99758a4faeee3f0cd",
+     "label": "probe-256-prep",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/probe-256-prep2--109a355304cf4421a4dc2ea011f2da48",
+     "label": "probe-256-prep2",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/probe-bench-3090--a57ccc10593c4c178c63974f977af0b6",
+     "label": "probe-bench-3090",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/probe-bench-3090--e89b7b54ed65419184255c5bb11ff478",
+     "label": "probe-bench-3090",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/purge-queued-dependency-smoke--59221313b83346d49a424513dff0750b",
+     "label": "purge-queued-dependency-smoke",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/purge-running-dependency-smoke--fcd57ac20faf4cd0a92bef8096c453b9",
+     "label": "purge-running-dependency-smoke",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/resume-A--3f2eb80f7c9041a9b5299a0263e63883",
+     "label": "resume-A",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/resume-B--90d91b611a9f448caead06984cccd80a",
+     "label": "resume-B",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/resume-D--60109f1bd3ac4878939ccc65550fcf37",
+     "label": "resume-D",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/toolchain-shm-verification--851990649dc348098c12deb1095d6a41",
+     "label": "toolchain-shm-verification",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/transfer-resume-smoke--26124036b8454f419cd5e66eece09e20",
+     "label": "transfer-resume-smoke",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/unify-disk-bench--b6793d78e42d46db93f0f43fc9bda165",
+     "label": "unify-disk-bench",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/unify-loader-bench--97ca9173741240e7aafb708b20cc6f92",
+     "label": "unify-loader-bench",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/unify-loader-w4-lock-draft--1c849beeac854b5d860142438fe091f0",
+     "label": "unify-loader-w4-lock-draft",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/unify-loader-w6-lock-draft--7bc37251d6774e108e58ff23ccf6574b",
+     "label": "unify-loader-w6-lock-draft",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/unify-loader-w6-lock-full--4044f6b13a9c4a3d882d5369daf54196",
+     "label": "unify-loader-w6-lock-full",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/unify-probe--54ab97a5af514f5e8e1baa104b102a04",
+     "label": "unify-probe",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/unify-probe2--27e427b99a754b58ab282efbc17f5e9c",
+     "label": "unify-probe2",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/unify-xm-smoke--c8c52c91724443eebe10f0ec1f342ad7",
+     "label": "unify-xm-smoke",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/unify-xm-smoke--c942fa5f74544af88e409d0e6a807fb7",
+     "label": "unify-xm-smoke",
+     "role": "treatment",
+     "note": null
+    }
+   ],
+   "verdict": null,
+   "sources": [
+    "run names"
+   ]
+  },
+  {
+   "id": "notebook-ae-runs-2026-09-29",
+   "title": "Notebook AE: 25M linskip and ImageNet (09-29 to 10-01)",
+   "created": "2026-09-29",
+   "status": "done",
+   "question": null,
+   "falsifier": null,
+   "primary_metric": "test_clean",
+   "score_steps": [],
+   "baseline": null,
+   "runs": [
+    {
+     "run": "notebook/2026-09-29_225933_076785_ae_25M_selfteach_linskip",
+     "label": "2026-09-29_225933_076785_ae_25M_selfteach_linskip",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "notebook/2026-09-29_233916_768905_ae_25M_selfteach_linskip",
+     "label": "2026-09-29_233916_768905_ae_25M_selfteach_linskip",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "notebook/2026-10-01_081504_474667_ae_25M_selfteach_imagenet",
+     "label": "2026-10-01_081504_474667_ae_25M_selfteach_imagenet",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/2026-09-29_233916_768905_ae_25M_selfteach_linskip--nb-a90584210dc28ecc678eeba135aa",
+     "label": "2026-09-29_233916_768905_ae_25M_selfteach_linskip",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "wsl3090/2026-10-01_081504_474667_ae_25M_selfteach_imagenet--nb-2a0f45fdc45f42a4172562127bc5",
+     "label": "2026-10-01_081504_474667_ae_25M_selfteach_imagenet",
+     "role": "treatment",
+     "note": null
+    }
+   ],
+   "verdict": null,
+   "sources": [
+    "run names"
+   ]
+  },
+  {
+   "id": "stl10-patch-io",
+   "title": "STL-10 11M: patch IO variants",
+   "created": "2026-09-28",
+   "status": "done",
+   "question": "Do other patch embed/unembed forms (micro, conv, linear + skip) improve the 11M AE?",
+   "falsifier": null,
+   "primary_metric": "test_clean",
+   "score_steps": [],
+   "baseline": null,
+   "runs": [
+    {
+     "run": "selfteach/L1_11M_linskip",
+     "label": "L1_11M_linskip",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "selfteach/M1_11M_micro",
+     "label": "M1_11M_micro",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "selfteach/M3_11M_convimg_inmask",
+     "label": "M3_11M_convimg_inmask",
+     "role": "treatment",
+     "note": null
+    }
+   ],
+   "verdict": null,
+   "sources": [
+    "stl10-selfteach/queue.txt"
+   ]
+  },
+  {
+   "id": "stl10-crop-tests",
+   "title": "STL-10 11M: crop tests",
+   "created": "2026-09-28",
+   "status": "done",
+   "question": "Which crop settings help the 11M detach-cz AE?",
+   "falsifier": null,
+   "primary_metric": "test_clean",
+   "score_steps": [],
+   "baseline": "selfteach/X3_11M_detachcz",
+   "runs": [
+    {
+     "run": "selfteach/C1_11M_crop50",
+     "label": "C1_11M_crop50",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "selfteach/C2_11M_crop50_id25",
+     "label": "C2_11M_crop50_id25",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "selfteach/C3_11M_perview",
+     "label": "C3_11M_perview",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "selfteach/C4_11M_edgesnap60",
+     "label": "C4_11M_edgesnap60",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "selfteach/X3_11M_detachcz",
+     "label": "X3_11M_detachcz",
+     "role": "baseline",
+     "note": null
+    }
+   ],
+   "verdict": null,
+   "sources": [
+    "stl10-selfteach/queue.txt"
+   ]
+  },
+  {
+   "id": "stl10-11m-distort-detach",
+   "title": "STL-10 11M: distortion noise and detach (Exp 1-6)",
+   "created": "2026-09-27",
+   "status": "done",
+   "question": "Do distortion-branch noise and a detached clean-z target improve the 11M AE?",
+   "falsifier": null,
+   "primary_metric": "test_clean",
+   "score_steps": [],
+   "baseline": "selfteach/X1_11M_control",
+   "runs": [
+    {
+     "run": "selfteach/L25_detachcz_100k",
+     "label": "L25_detachcz_100k",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "selfteach/X1_11M_control",
+     "label": "X1_11M_control",
+     "role": "baseline",
+     "note": null
+    },
+    {
+     "run": "selfteach/X2_11M_distort",
+     "label": "X2_11M_distort",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "selfteach/X3_11M_detachcz_decay90k",
+     "label": "X3_11M_detachcz_decay90k",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "selfteach/X4_11M_distort_detach",
+     "label": "X4_11M_distort_detach",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "selfteach/X6_11M_distort_detachmask",
+     "label": "X6_11M_distort_detachmask",
+     "role": "treatment",
+     "note": null
+    }
+   ],
+   "verdict": null,
+   "sources": [
+    "stl10-selfteach/queue.txt"
+   ]
+  },
+  {
+   "id": "stl10-sqbulk-long",
+   "title": "STL-10 25M: squared W2, bulk sigma, long runs (09-26)",
+   "created": "2026-09-26",
+   "status": "done",
+   "question": "Do squared W2 and bulk sigma regularizer forms, batch size, and lr decay keep long 25M runs healthy?",
+   "falsifier": null,
+   "primary_metric": "test_clean",
+   "score_steps": [],
+   "baseline": "selfteach/BT_control",
+   "runs": [
+    {
+     "run": "selfteach/BR_bs2",
+     "label": "BR_bs2",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "selfteach/BR_bs4",
+     "label": "BR_bs4",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "selfteach/BR_ww0025",
+     "label": "BR_ww0025",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "selfteach/BR_ww005",
+     "label": "BR_ww005",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "selfteach/BT_bulk",
+     "label": "BT_bulk",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "selfteach/BT_control",
+     "label": "BT_control",
+     "role": "baseline",
+     "note": null
+    },
+    {
+     "run": "selfteach/BT_square",
+     "label": "BT_square",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "selfteach/DECAY_80to90k",
+     "label": "DECAY_80to90k",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "selfteach/LONG200k_sqbulk_lr1e4",
+     "label": "LONG200k_sqbulk_lr1e4",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "selfteach/ZSC100k_sqbulk_lr1e4",
+     "label": "ZSC100k_sqbulk_lr1e4",
+     "role": "treatment",
+     "note": null
+    }
+   ],
+   "verdict": null,
+   "sources": [
+    "stl10-selfteach/queue.txt"
+   ]
+  },
+  {
+   "id": "stl10-p4-long-colour",
+   "title": "STL-10 25M: P4 long runs and colour drift (09-25)",
+   "created": "2026-09-25",
+   "status": "done",
+   "question": "Does the P4 setup survive 200k steps, and what causes the magenta colour drift?",
+   "falsifier": null,
+   "primary_metric": "test_clean",
+   "score_steps": [],
+   "baseline": null,
+   "runs": [
+    {
+     "run": "selfteach/CD015_from16k",
+     "label": "CD015_from16k",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "selfteach/CD01_from16k",
+     "label": "CD01_from16k",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "selfteach/CD02_from16k",
+     "label": "CD02_from16k",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "selfteach/COL1_P4_lr3e4_22k",
+     "label": "COL1_P4_lr3e4_22k",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "selfteach/LONG200k_P4_lr1e4",
+     "label": "LONG200k_P4_lr1e4",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "selfteach/LONG200k_P4_lr3e4",
+     "label": "LONG200k_P4_lr3e4",
+     "role": "treatment",
+     "note": null
+    }
+   ],
+   "verdict": null,
+   "sources": [
+    "stl10-selfteach/queue.txt"
+   ]
+  },
+  {
+   "id": "stl10-norm-combos-robustness",
+   "title": "STL-10 25M: norm combos and robustness of L4",
+   "created": "2026-09-25",
+   "status": "done",
+   "question": "Which core in/out norm combination is needed, and how robust is the L4 setup to lr and beta2?",
+   "falsifier": null,
+   "primary_metric": "test_clean",
+   "score_steps": [],
+   "baseline": "selfteach/L4_vw03_20k",
+   "runs": [
+    {
+     "run": "selfteach/F1_lr1e4_fine",
+     "label": "F1_lr1e4_fine",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "selfteach/F2_lr2e4_fine",
+     "label": "F2_lr2e4_fine",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "selfteach/F3_lr2e4_s45",
+     "label": "F3_lr2e4_s45",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "selfteach/F6_lr3e4_fine",
+     "label": "F6_lr3e4_fine",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "selfteach/L3_base_20k",
+     "label": "L3_base_20k",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "selfteach/L4_vw03_20k",
+     "label": "L4_vw03_20k",
+     "role": "baseline",
+     "note": null
+    },
+    {
+     "run": "selfteach/N0_stream_both",
+     "label": "N0_stream_both",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "selfteach/N1_outtok_only",
+     "label": "N1_outtok_only",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "selfteach/N2_intok_outstream",
+     "label": "N2_intok_outstream",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "selfteach/R1_L4_b95",
+     "label": "R1_L4_b95",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "selfteach/R2_L4_lr2e4",
+     "label": "R2_L4_lr2e4",
+     "role": "treatment",
+     "note": null
+    }
+   ],
+   "verdict": "The per-token input norm is the necessary piece; lr 2e-4 collapses sometimes, lr 3e-4 reliably.",
+   "sources": [
+    "stl10-selfteach/JOURNAL.md",
+    "stl10-selfteach/queue.txt"
+   ]
+  },
+  {
+   "id": "stl10-lr3e4-fixes",
+   "title": "STL-10 25M: fixes for lr 3e-4 collapse",
+   "created": "2026-09-25",
+   "status": "done",
+   "question": "Which architecture change (GELU, qk-norm, token init, branch-output RMSNorm) lets the AE survive lr 3e-4?",
+   "falsifier": null,
+   "primary_metric": "test_clean",
+   "score_steps": [],
+   "baseline": "selfteach/E2_lr3e4_slices1024",
+   "runs": [
+    {
+     "run": "selfteach/A5_gelu",
+     "label": "A5_gelu",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "selfteach/A7_qkgain",
+     "label": "A7_qkgain",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "selfteach/A8_noqknorm",
+     "label": "A8_noqknorm",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "selfteach/E2_lr3e4_slices1024",
+     "label": "E2_lr3e4_slices1024",
+     "role": "baseline",
+     "note": null
+    },
+    {
+     "run": "selfteach/K1_tok002_lr3e4",
+     "label": "K1_tok002_lr3e4",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "selfteach/K2_tok01_lr3e4",
+     "label": "K2_tok01_lr3e4",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "selfteach/M1_zmult01",
+     "label": "M1_zmult01",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "selfteach/P1_postnorm_lr3e4",
+     "label": "P1_postnorm_lr3e4",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "selfteach/P2_postnorm_g01",
+     "label": "P2_postnorm_g01",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "selfteach/P4_postnorm_g1e4_stdW",
+     "label": "P4_postnorm_g1e4_stdW",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "selfteach/V1_P4_lr3e4_15k",
+     "label": "V1_P4_lr3e4_15k",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "selfteach/V2_P4_lr4e4",
+     "label": "V2_P4_lr4e4",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "selfteach/V3_P4_lr1e4_8k",
+     "label": "V3_P4_lr1e4_8k",
+     "role": "treatment",
+     "note": null
+    }
+   ],
+   "verdict": "P4 (token init 0.02 + branch-output RMSNorm with gain 1e-4) was the first setup to survive lr 3e-4.",
+   "sources": [
+    "stl10-selfteach/JOURNAL.md",
+    "stl10-selfteach/queue.txt"
+   ]
+  },
+  {
+   "id": "stl10-failure-diagnosis",
+   "title": "STL-10 25M: failure-mode diagnosis",
+   "created": "2026-09-25",
+   "status": "done",
+   "question": "Why does the decoder collapse (ww too high, view too high, lr too high)?",
+   "falsifier": null,
+   "primary_metric": "test_clean",
+   "score_steps": [],
+   "baseline": "selfteach/D4_vw01_ww003_diag",
+   "runs": [
+    {
+     "run": "selfteach/D1_hp11_diag",
+     "label": "D1_hp11_diag",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "selfteach/D3_vw3_ww001_diag",
+     "label": "D3_vw3_ww001_diag",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "selfteach/D4_vw01_ww003_diag",
+     "label": "D4_vw01_ww003_diag",
+     "role": "baseline",
+     "note": null
+    },
+    {
+     "run": "selfteach/E1_hp11_slices1024",
+     "label": "E1_hp11_slices1024",
+     "role": "treatment",
+     "note": null
+    }
+   ],
+   "verdict": "Flat-SWD gradient noise drives z drift (fix: 1024 slices, E1); high view weight gives rank collapse; lr 3e-4 gives a static runaway in decoder MLPs.",
+   "sources": [
+    "stl10-selfteach/JOURNAL.md",
+    "stl10-selfteach/queue.txt"
+   ]
+  },
+  {
+   "id": "stl10-norm-stability",
+   "title": "STL-10 25M: norm placement, weights and lr (first night)",
+   "created": "2026-09-24",
+   "status": "done",
+   "question": "Which norm placement, view/regularizer weights and lr keep the 25M self-teach AE from collapsing?",
+   "falsifier": null,
+   "primary_metric": "test_clean",
+   "score_steps": [],
+   "baseline": "selfteach/B0_base",
+   "runs": [
+    {
+     "run": "selfteach/B0_base",
+     "label": "B0_base",
+     "role": "baseline",
+     "note": null
+    },
+    {
+     "run": "selfteach/B1_ema999",
+     "label": "B1_ema999",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "selfteach/B2_tokennorm",
+     "label": "B2_tokennorm",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "selfteach/L2_T1_20k",
+     "label": "L2_T1_20k",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "selfteach/M1_vw03",
+     "label": "M1_vw03",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "selfteach/S2_tokennorm",
+     "label": "S2_tokennorm",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "selfteach/S3_token_route",
+     "label": "S3_token_route",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "selfteach/S6_token_inout",
+     "label": "S6_token_inout",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "selfteach/T1_Bhp",
+     "label": "T1_Bhp",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "selfteach/T2_ww01",
+     "label": "T2_ww01",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "selfteach/T2b_ww01",
+     "label": "T2b_ww01",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "selfteach/T3b_Bhp_lr3e4_b999",
+     "label": "T3b_Bhp_lr3e4_b999",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "selfteach/T3c_Bhp_lr3e4_b95",
+     "label": "T3c_Bhp_lr3e4_b95",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "selfteach/T3d_Bhp_b95",
+     "label": "T3d_Bhp_b95",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "selfteach/T3e_Bhp_lr3e4",
+     "label": "T3e_Bhp_lr3e4",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "selfteach/T4r_Bhp_lr3e4_resid",
+     "label": "T4r_Bhp_lr3e4_resid",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "selfteach/T5_Bhp_lr3e4_warm",
+     "label": "T5_Bhp_lr3e4_warm",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "selfteach/U2_intok_outstream_Bhp",
+     "label": "U2_intok_outstream_Bhp",
+     "role": "treatment",
+     "note": null
+    }
+   ],
+   "verdict": "Stream/stream collapses (B0); per-token in+out at 3:1 weights is healthy (M1_vw03); lr 3e-4 and beta2 0.95 break the per-token base. Eval metrics of B1-L4 are invalid (hook bug).",
+   "sources": [
+    "stl10-selfteach/JOURNAL.md"
+   ]
+  },
+  {
+   "id": "smoke-tests",
+   "title": "Smoke tests",
+   "created": "2026-09-24",
+   "status": "done",
+   "question": null,
+   "falsifier": null,
+   "primary_metric": "none",
+   "score_steps": [],
+   "baseline": null,
+   "runs": [
+    {
+     "run": "selfteach/resume_smoke",
+     "label": "resume_smoke",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "selfteach/smoke",
+     "label": "smoke",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "selfteach/smoke_A4",
+     "label": "smoke_A4",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "selfteach/smoke_A6",
+     "label": "smoke_A6",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "selfteach/smoke_diag",
+     "label": "smoke_diag",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "selfteach/verify",
+     "label": "verify",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/fidloop-smoke",
+     "label": "fidloop-smoke",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/smoke-8x720-distilleach-w01",
+     "label": "smoke-8x720-distilleach-w01",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/smoke-unify-distill",
+     "label": "smoke-unify-distill",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/smoke-unify-distillchain",
+     "label": "smoke-unify-distillchain",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/smoke-unify-distilleach",
+     "label": "smoke-unify-distilleach",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/smoke-unify-distilleach-blocks-w01",
+     "label": "smoke-unify-distilleach-blocks-w01",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/smoke-unify-distilleach-w01",
+     "label": "smoke-unify-distilleach-w01",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/smoke-unify-distilleachblock",
+     "label": "smoke-unify-distilleachblock",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/smoke-unify-lrswitch",
+     "label": "smoke-unify-lrswitch",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/smoke-unify-selfflow",
+     "label": "smoke-unify-selfflow",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/smoke2-unify-distill",
+     "label": "smoke2-unify-distill",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/smoke2-unify-selfflow",
+     "label": "smoke2-unify-selfflow",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/smoke_E1_hp11_slices1024",
+     "label": "smoke_E1_hp11_slices1024",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/smoke_flow_cooldown",
+     "label": "smoke_flow_cooldown",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/smoke_flow_multires",
+     "label": "smoke_flow_multires",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/stsmoke-plain",
+     "label": "stsmoke-plain",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/stsmoke-z3",
+     "label": "stsmoke-z3",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/stsmoke-z6",
+     "label": "stsmoke-z6",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "shared/stsmoke-z8",
+     "label": "stsmoke-z8",
+     "role": "treatment",
+     "note": null
+    }
+   ],
+   "verdict": null,
+   "sources": [
+    "run names"
+   ]
+  },
+  {
+   "id": "notebook-ae-runs-2026-09-23",
+   "title": "Notebook AE: 25M self-teach and new arch (09-23 to 09-24)",
+   "created": "2026-09-23",
+   "status": "done",
+   "question": null,
+   "falsifier": null,
+   "primary_metric": "test_clean",
+   "score_steps": [],
+   "baseline": null,
+   "runs": [
+    {
+     "run": "notebook/2026-09-23_222541_164945_ae_11M_self-teach_color_drop_10p_lr1e-4",
+     "label": "2026-09-23_222541_164945_ae_11M_self-teach_color_drop_10p_lr1e-4",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "notebook/2026-09-23_234158_290307_ae_25M_self-teach_init_small",
+     "label": "2026-09-23_234158_290307_ae_25M_self-teach_init_small",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "notebook/2026-09-24_091214_025785_ae_25M_self-teach_stream_norm",
+     "label": "2026-09-24_091214_025785_ae_25M_self-teach_stream_norm",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "notebook/2026-09-24_093754_534960_ae_25M_self-teach_stream_norm",
+     "label": "2026-09-24_093754_534960_ae_25M_self-teach_stream_norm",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "notebook/2026-09-24_100011_078317_ae_11M_self-teach_new_arch_old_default_hparams",
+     "label": "2026-09-24_100011_078317_ae_11M_self-teach_new_arch_old_default_hparams",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "notebook/2026-09-24_100036_717385_ae_5M_self-teach_new_arch_old_default_hparams",
+     "label": "2026-09-24_100036_717385_ae_5M_self-teach_new_arch_old_default_hparams",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "notebook/2026-09-24_100752_518313_ae_5M_self-teach_new_arch_old_default_hparams",
+     "label": "2026-09-24_100752_518313_ae_5M_self-teach_new_arch_old_default_hparams",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "notebook/2026-09-24_103113_523268_ae_5M_self-teach_new_arch_old_default_hparams",
+     "label": "2026-09-24_103113_523268_ae_5M_self-teach_new_arch_old_default_hparams",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "notebook/2026-09-24_104627_161067_ae_5M_self-teach_new_arch_old_default_hparams",
+     "label": "2026-09-24_104627_161067_ae_5M_self-teach_new_arch_old_default_hparams",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "notebook/2026-09-24_105640_154138_ae_5M_self-teach_clean_reg_ww01",
+     "label": "2026-09-24_105640_154138_ae_5M_self-teach_clean_reg_ww01",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "notebook/2026-09-24_141622_586248_ae_25M_self-teach",
+     "label": "2026-09-24_141622_586248_ae_25M_self-teach",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "notebook/2026-09-24_145932_256992_ae_25M_self-teach_qknorm",
+     "label": "2026-09-24_145932_256992_ae_25M_self-teach_qknorm",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "notebook/2026-09-24_152702_201991_ae_25M_self-teach_qknorm_swignorm",
+     "label": "2026-09-24_152702_201991_ae_25M_self-teach_qknorm_swignorm",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "notebook/2026-09-24_153741_191325_ae_25M_self-teach_qknorm_lr2e-4",
+     "label": "2026-09-24_153741_191325_ae_25M_self-teach_qknorm_lr2e-4",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "notebook/2026-09-24_181134_475320_ae_25M_self-teach_qknorm_lr1e-4_no_was_square",
+     "label": "2026-09-24_181134_475320_ae_25M_self-teach_qknorm_lr1e-4_no_was_square",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "notebook/2026-09-24_183124_555150_ae_25M_self-teach_vw_ww01",
+     "label": "2026-09-24_183124_555150_ae_25M_self-teach_vw_ww01",
+     "role": "treatment",
+     "note": null
+    }
+   ],
+   "verdict": null,
+   "sources": [
+    "run names"
+   ]
+  },
+  {
+   "id": "notebook-ae-runs-2026-09-20",
+   "title": "Notebook AE: 11M self-teach tuning (09-20 to 09-22)",
+   "created": "2026-09-20",
+   "status": "done",
+   "question": null,
+   "falsifier": null,
+   "primary_metric": "test_clean",
+   "score_steps": [],
+   "baseline": null,
+   "runs": [
+    {
+     "run": "notebook/2026-09-20_193145_782920_ae_11M_self-teach",
+     "label": "2026-09-20_193145_782920_ae_11M_self-teach",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "notebook/2026-09-20_202408_370634_ae_11M_self-teach_ww01",
+     "label": "2026-09-20_202408_370634_ae_11M_self-teach_ww01",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "notebook/2026-09-21_081739_075534_ae_11M_self-teach_clean_target",
+     "label": "2026-09-21_081739_075534_ae_11M_self-teach_clean_target",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "notebook/2026-09-21_091347_043262_ae_11M_self-teach_tiny_init",
+     "label": "2026-09-21_091347_043262_ae_11M_self-teach_tiny_init",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "notebook/2026-09-21_093435_947658_ae_11M_self-teach_norm_init",
+     "label": "2026-09-21_093435_947658_ae_11M_self-teach_norm_init",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "notebook/2026-09-21_114706_716793_ae_11M_self-teach_no_consistency",
+     "label": "2026-09-21_114706_716793_ae_11M_self-teach_no_consistency",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "notebook/2026-09-21_120641_775787_ae_11M_self-teach_consistency_crop",
+     "label": "2026-09-21_120641_775787_ae_11M_self-teach_consistency_crop",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "notebook/2026-09-21_130142_348779_ae_11M_self-teach_big_crop",
+     "label": "2026-09-21_130142_348779_ae_11M_self-teach_big_crop",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "notebook/2026-09-21_140552_999663_ae_11M_self-teach_crop_35",
+     "label": "2026-09-21_140552_999663_ae_11M_self-teach_crop_35",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "notebook/2026-09-21_225809_281796_ae_11M_self-teach_crop_range",
+     "label": "2026-09-21_225809_281796_ae_11M_self-teach_crop_range",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "notebook/2026-09-21_232348_162034_ae_11M_self-teach_crop_range",
+     "label": "2026-09-21_232348_162034_ae_11M_self-teach_crop_range",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "notebook/2026-09-22_075328_109102_ae_11M_self-teach_crop_range",
+     "label": "2026-09-22_075328_109102_ae_11M_self-teach_crop_range",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "notebook/2026-09-22_103113_567039_ae_11M_self-teach_crop_range",
+     "label": "2026-09-22_103113_567039_ae_11M_self-teach_crop_range",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "notebook/2026-09-22_103130_683807_ae_11M_self-teach_color_drop",
+     "label": "2026-09-22_103130_683807_ae_11M_self-teach_color_drop",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "notebook/2026-09-22_110615_268207_ae_11M_self-teach_rgb_repeat",
+     "label": "2026-09-22_110615_268207_ae_11M_self-teach_rgb_repeat",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "notebook/2026-09-22_112832_100035_ae_11M_self-teach_rgb_repeat_10p",
+     "label": "2026-09-22_112832_100035_ae_11M_self-teach_rgb_repeat_10p",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "notebook/2026-09-22_113133_712329_ae_11M_self-teach_rgb_repeat_10p",
+     "label": "2026-09-22_113133_712329_ae_11M_self-teach_rgb_repeat_10p",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "notebook/2026-09-22_122035_115657_ae_11M_self-teach_color_drop_10p",
+     "label": "2026-09-22_122035_115657_ae_11M_self-teach_color_drop_10p",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "notebook/2026-09-22_124452_527590_ae_11M_self-teach_color_drop_10p_lr1e-4",
+     "label": "2026-09-22_124452_527590_ae_11M_self-teach_color_drop_10p_lr1e-4",
+     "role": "treatment",
+     "note": null
+    }
+   ],
+   "verdict": null,
+   "sources": [
+    "run names"
+   ]
+  },
+  {
+   "id": "notebook-ae-runs-2026-09-15",
+   "title": "Notebook AE: early sizes, token masks, latent noise (09-15 to 09-20)",
+   "created": "2026-09-15",
+   "status": "done",
+   "question": null,
+   "falsifier": null,
+   "primary_metric": "test_clean",
+   "score_steps": [],
+   "baseline": null,
+   "runs": [
+    {
+     "run": "notebook/2026-09-15_134452_651090_ae_1M_view_target_sliced_z",
+     "label": "2026-09-15_134452_651090_ae_1M_view_target_sliced_z",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "notebook/2026-09-15_181455_499380_ae_1M_view_target_no_token_project",
+     "label": "2026-09-15_181455_499380_ae_1M_view_target_no_token_project",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "notebook/2026-09-16_092956_630755_ae_5M_baseline",
+     "label": "2026-09-16_092956_630755_ae_5M_baseline",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "notebook/2026-09-16_160744_812807_ae_29M_baseline",
+     "label": "2026-09-16_160744_812807_ae_29M_baseline",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "notebook/2026-09-17_132953_105305_recovered_logs",
+     "label": "2026-09-17_132953_105305_recovered_logs",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "notebook/2026-09-17_160106_847168_ae_7M_jr_smt",
+     "label": "2026-09-17_160106_847168_ae_7M_jr_smt",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "notebook/2026-09-17_203430_764555_ae_7M_jr_smt_hpreg",
+     "label": "2026-09-17_203430_764555_ae_7M_jr_smt_hpreg",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "notebook/2026-09-17_203546_915516_ae_7M_jr_smt_hpreg",
+     "label": "2026-09-17_203546_915516_ae_7M_jr_smt_hpreg",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "notebook/2026-09-17_233148_332874_ae_7M_jr_smt_hpreg_spike_guard_view1e-1",
+     "label": "2026-09-17_233148_332874_ae_7M_jr_smt_hpreg_spike_guard_view1e-1",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "notebook/2026-09-17_235531_343605_ae_7M_jr_smt_mpreg",
+     "label": "2026-09-17_235531_343605_ae_7M_jr_smt_mpreg",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "notebook/2026-09-18_000600_153752_ae_7M_jr_smt_mpreg",
+     "label": "2026-09-18_000600_153752_ae_7M_jr_smt_mpreg",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "notebook/2026-09-18_001139_228206_ae_7M_jr_smt_mpreg",
+     "label": "2026-09-18_001139_228206_ae_7M_jr_smt_mpreg",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "notebook/2026-09-18_133209_136957_ae_5M_tok_mask",
+     "label": "2026-09-18_133209_136957_ae_5M_tok_mask",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "notebook/2026-09-18_133742_368745_ae_5M_tok_mask",
+     "label": "2026-09-18_133742_368745_ae_5M_tok_mask",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "notebook/2026-09-18_134320_729674_ae_5M_tok_mask",
+     "label": "2026-09-18_134320_729674_ae_5M_tok_mask",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "notebook/2026-09-18_161504_228724_ae_15M_tok_mask",
+     "label": "2026-09-18_161504_228724_ae_15M_tok_mask",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "notebook/2026-09-18_165019_551877_ae_16M_tok_mask_deep",
+     "label": "2026-09-18_165019_551877_ae_16M_tok_mask_deep",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "notebook/2026-09-18_165730_976937_ae_16M_tok_mask_deep",
+     "label": "2026-09-18_165730_976937_ae_16M_tok_mask_deep",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "notebook/2026-09-18_170535_353997_ae_14M_tok_mask_deep",
+     "label": "2026-09-18_170535_353997_ae_14M_tok_mask_deep",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "notebook/2026-09-18_203759_945963_ae_14M_tok_mask_deep",
+     "label": "2026-09-18_203759_945963_ae_14M_tok_mask_deep",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "notebook/2026-09-18_213213_346449_ae_14M_tok_heavy_mask_deep",
+     "label": "2026-09-18_213213_346449_ae_14M_tok_heavy_mask_deep",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "notebook/2026-09-18_220029_171961_ae_14M_tok_heavy_mask_deep",
+     "label": "2026-09-18_220029_171961_ae_14M_tok_heavy_mask_deep",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "notebook/2026-09-18_225701_425583_ae_5M_tok_heavy_mask_light_weight",
+     "label": "2026-09-18_225701_425583_ae_5M_tok_heavy_mask_light_weight",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "notebook/2026-09-18_231537_012007_ae_5M_latent_noise_mask",
+     "label": "2026-09-18_231537_012007_ae_5M_latent_noise_mask",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "notebook/2026-09-18_233024_691838_ae_5M_latent_noise_mask",
+     "label": "2026-09-18_233024_691838_ae_5M_latent_noise_mask",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "notebook/2026-09-19_081227_565303_ae_5M_latent_noise_mask",
+     "label": "2026-09-19_081227_565303_ae_5M_latent_noise_mask",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "notebook/2026-09-19_093337_305568_ae_5M_clean_path_latent_noise",
+     "label": "2026-09-19_093337_305568_ae_5M_clean_path_latent_noise",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "notebook/2026-09-19_123113_843492_ae_5M_clean_path_latent_noise_grey_init",
+     "label": "2026-09-19_123113_843492_ae_5M_clean_path_latent_noise_grey_init",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "notebook/2026-09-19_124025_736826_ae_5M_clean_path_latent_noise_grey_init",
+     "label": "2026-09-19_124025_736826_ae_5M_clean_path_latent_noise_grey_init",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "notebook/2026-09-19_181207_837054_ae_5M_latent_noise_one_third",
+     "label": "2026-09-19_181207_837054_ae_5M_latent_noise_one_third",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "notebook/2026-09-19_210850_042683_ae_11M_latent_noise_one_third",
+     "label": "2026-09-19_210850_042683_ae_11M_latent_noise_one_third",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "notebook/2026-09-19_213029_643633_ae_11M_latent_noise_one_third",
+     "label": "2026-09-19_213029_643633_ae_11M_latent_noise_one_third",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "notebook/2026-09-19_213639_037807_ae_11M_latent_noise_one_third",
+     "label": "2026-09-19_213639_037807_ae_11M_latent_noise_one_third",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "notebook/2026-09-19_214159_759021_ae_11M_latent_noise_one_third",
+     "label": "2026-09-19_214159_759021_ae_11M_latent_noise_one_third",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "notebook/2026-09-19_215044_956855_ae_11M_no_sparse",
+     "label": "2026-09-19_215044_956855_ae_11M_no_sparse",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "notebook/2026-09-19_215730_541484_ae_11M_no_sparse",
+     "label": "2026-09-19_215730_541484_ae_11M_no_sparse",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "notebook/2026-09-20_081257_176466_ae_29M_no_sparse",
+     "label": "2026-09-20_081257_176466_ae_29M_no_sparse",
+     "role": "treatment",
+     "note": null
+    },
+    {
+     "run": "notebook/2026-09-20_131659_879225_ae_5M_RMS_SwiGLU",
+     "label": "2026-09-20_131659_879225_ae_5M_RMS_SwiGLU",
+     "role": "treatment",
+     "note": null
+    }
+   ],
+   "verdict": null,
+   "sources": [
+    "run names"
+   ]
+  }
+ ]
+}

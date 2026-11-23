@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Grey samples: cause and fix</title>
+<style>
+  body { margin: 0; padding: 20px 16px 48px; background: #090c12; color: #e8ecf3; font: 16px/1.55 system-ui, sans-serif; }
+  main { max-width: 760px; margin: 0 auto; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  h2 { font-size: 16px; margin: 34px 0 6px; }
+  p, td, th, li { color: #a7b0c0; }
+  .lead { margin: 0 0 22px; }
+  code { color: #e8ecf3; font: 13px ui-monospace, Menlo, Consolas, monospace; background: rgba(255,255,255,0.06); padding: 1px 5px; border-radius: 5px; }
+  b { color: #e8ecf3; }
+  ol.steps { list-style: none; padding: 0; margin: 0; counter-reset: step; }
+  ol.steps > li { counter-increment: step; position: relative; padding: 14px 16px 14px 58px; margin: 0 0 10px; background: #121822; border: 1px solid rgba(255,255,255,0.09); border-radius: 14px; }
+  ol.steps > li::before { content: counter(step); position: absolute; left: 16px; top: 14px; width: 28px; height: 28px; border-radius: 50%; background: hsl(192 86% 64%); color: #06222a; font-weight: 700; display: grid; place-items: center; }
+  .where { display: block; font-size: 12.5px; color: #6b7482; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 2px; }
+  .do { color: #e8ecf3; }
+  button { font: inherit; font-size: 14px; font-weight: 600; padding: 8px 18px; border-radius: 999px; border: 0; background: hsl(192 86% 64%); color: #06222a; cursor: pointer; min-height: 40px; }
+  .copy { margin-top: 10px; }
+  .msg { margin-left: 10px; color: hsl(150 60% 55%); font-size: 14px; }
+  details { margin-top: 8px; }
+  summary { cursor: pointer; color: #6b7482; font-size: 13px; }
+  pre { margin: 8px 0 0; padding: 12px; background: #0b1018; border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; overflow-x: auto; font: 12.5px/1.45 ui-monospace, Menlo, Consolas, monospace; color: #e8ecf3; }
+  .result { margin-top: 10px; padding: 10px 12px; background: #0b1018; border-left: 3px solid hsl(150 60% 55%); border-radius: 6px; overflow-x: auto; white-space: pre; font: 12.5px/1.5 ui-monospace, Menlo, Consolas, monospace; color: #e8ecf3; }
+  .caution { margin-top: 10px; padding: 10px 12px; border-left: 3px solid #e3a13a; background: rgba(227,161,58,0.08); border-radius: 6px; color: #e8ecf3; font-size: 14.5px; }
+  .result-label { display: block; margin-top: 10px; font-size: 13px; color: #6b7482; }
+  table { border-collapse: collapse; width: 100%; margin: 4px 0; font-size: 15px; }
+  th, td { text-align: left; padding: 8px 12px 8px 0; border-bottom: 1px solid rgba(255,255,255,0.09); vertical-align: top; }
+  th { color: #e8ecf3; font-weight: 600; }
+  a { color: hsl(192 86% 64%); }
+  .small { font-size: 14.5px; }
+</style>
+</head>
+<body>
+<main>
+<h1>Grey samples: the patch skip drops color</h1>
+<p class="lead">Notebook: <code>ImageNet-Unify.ipynb</code>. The loss is fine. The fixed skip path in the patch embed and un-embed
+carries brightness only, and the part that can carry color starts 10,000 times weaker.</p>
+
+<h2>Why</h2>
+<ul class="small">
+  <li><b>The numbers line up by accident.</b> A 16 px patch has 768 values, ordered pixel by pixel as R, G, B. Your
+      <code>emb_dim</code> is 256. <code>ChannelGroupResize</code> groups 768 / 256 = 3 consecutive values, which is exactly the
+      R, G and B of one pixel.</li>
+  <li><b>Embed skip:</b> it averages each group, so each token channel is the grey value of one pixel. A color image and its grey
+      version give the same tokens.</li>
+  <li><b>Un-embed skip:</b> it repeats each token channel over its group, so R = G = B in every output pixel.</li>
+  <li><b>Color can only come from the learned linear branches.</b> They sit behind an RMSNorm with gain <code>1e-4</code>. At init the color
+      part of the un-embed output is about 0.00007, against 0.8 for the grey part. With <code>lr = 1e-4</code> that gain grows slowly.</li>
+  <li><b>The AE notebook did not show this</b> because its width was 336. 768 / 336 is not a whole number, so the groups did not line up
+      with the three channels.</li>
+</ul>
+
+<h2>Fix</h2>
+<ol class="steps">
+  <li><span class="where">Definitions: the three cells <code>class ChannelGroupResize</code>, <code>class LinSkipPatchEmbed</code>, <code>class LinSkipUnEmbed</code></span>
+    <span class="do">Replace the first of the three cells with this. Delete the other two.</span>
+    <div class="copy">
+<button>Copy the patch cell</button><span class="msg" role="status"></span>
+<details><summary>Show the code (97 lines)</summary><pre># patch embed / un-embed with a colour-keeping skip (definitions only)
+
+
+class PatchPoolSkip(nn.Module):
+    &quot;&quot;&quot;Fixed skip between the pixels of a patch and its token.
+
+    Down: every colour channel of the p x p patch is average-pooled
+    to k x k. The c * k * k values fill the first token channels;
+    the rest are zero. Up: the reverse, with nearest upsampling.
+
+    k is the largest size that divides the patch size and fits:
+    c * k * k &lt;= emb_dim. Because k divides p, every pixel is in
+    exactly one block of the same size. The skip then treats all
+    positions alike, and mirrors and quarter turns of a patch come
+    out as mirrors and quarter turns.
+    &quot;&quot;&quot;
+    def __init__(self, patch_size, c, emb_dim):
+        super().__init__()
+        self.p, self.c, self.emb_dim = patch_size, c, emb_dim
+        fits = [
+            k for k in range(1, patch_size + 1)
+            if patch_size % k == 0 and c * k * k &lt;= emb_dim
+        ]
+        assert fits, &quot;emb_dim is smaller than the channels&quot;
+        self.k = max(fits)
+        self.n_used = c * self.k * self.k
+
+    def down(self, patches):
+        # (B, T, c, p, p) -&gt; (B, T, emb_dim)
+        B, T = patches.shape[:2]
+        x = F.adaptive_avg_pool2d(
+            patches.reshape(B * T, self.c, self.p, self.p), self.k,
+        ).reshape(B, T, self.n_used)
+        return F.pad(x, (0, self.emb_dim - self.n_used))
+
+    def up(self, tokens):
+        # (B, T, emb_dim) -&gt; (B, T, c, p, p)
+        B, T = tokens.shape[:2]
+        x = tokens[..., :self.n_used].reshape(
+            B * T, self.c, self.k, self.k,
+        )
+        x = F.interpolate(x, size=(self.p, self.p), mode=&quot;nearest&quot;)
+        return x.reshape(B, T, self.c, self.p, self.p)
+
+
+class LinSkipPatchEmbed(nn.Module):
+    def __init__(self, patch_size, c, emb_dim):
+        super().__init__()
+        self.p, self.c = patch_size, c
+        n = c * patch_size * patch_size
+        self.skip = PatchPoolSkip(patch_size, c, emb_dim)
+        self.linear = nn.Linear(n, emb_dim, bias=False)
+        self.norm = nn.RMSNorm(emb_dim)
+        nn.init.constant_(self.norm.weight, 1e-4)
+
+    def forward(self, x):
+        B, C, H, W = x.shape
+        assert H % self.p == 0 and W % self.p == 0
+        p, rows, cols = self.p, H // self.p, W // self.p
+
+        # (B, rows * cols, C, p, p): one small image per patch
+        patches = (
+            x.reshape(B, C, rows, p, cols, p)
+            .permute(0, 2, 4, 1, 3, 5)
+            .reshape(B, rows * cols, C, p, p)
+        )
+        flat = patches.reshape(B, rows * cols, C * p * p)
+
+        return self.skip.down(patches) + self.norm(self.linear(flat))
+
+
+class LinSkipUnEmbed(nn.Module):
+    def __init__(self, patch_size, c, emb_dim):
+        super().__init__()
+        self.p, self.c = patch_size, c
+        n = c * patch_size * patch_size
+        self.skip = PatchPoolSkip(patch_size, c, emb_dim)
+        self.linear = nn.Linear(emb_dim, n, bias=False)
+        self.norm = nn.RMSNorm(n)
+        nn.init.constant_(self.norm.weight, 1e-4)
+
+    def forward(self, x, patch_rows, patch_cols):
+        B, T = x.shape[:2]
+        assert T == patch_rows * patch_cols
+        p, c = self.p, self.c
+
+        patches = (
+            self.skip.up(x)
+            + self.norm(self.linear(x)).reshape(B, T, c, p, p)
+        )
+
+        # (B, rows, cols, c, p, p) -&gt; (B, c, rows * p, cols * p)
+        return (
+            patches.reshape(B, patch_rows, patch_cols, c, p, p)
+            .permute(0, 3, 1, 4, 2, 5)
+            .reshape(B, c, patch_rows * p, patch_cols * p)
+        )
+</pre></details>
+</div>
+  </li>
+  <li><span class="where">New cell, directly below the patch cell</span>
+    <span class="do">Paste this and run it once.</span>
+    <div class="copy">
+<button>Copy the color check</button><span class="msg" role="status"></span>
+<details><summary>Show the code (24 lines)</summary><pre># Does the fixed skip path keep colour? Pure red, green and blue in,
+# through embed skip and un-embed skip, and out again.
+def check_patch_colour():
+    embed = LinSkipPatchEmbed(patch_size, 3, emb_dim)
+    un_embed = LinSkipUnEmbed(patch_size, 3, emb_dim)
+    size = 2 * patch_size
+    for name, rgb in (
+        (&quot;red&quot;, (1., 0., 0.)), (&quot;green&quot;, (0., 1., 0.)),
+        (&quot;blue&quot;, (0., 0., 1.)),
+    ):
+        image = torch.tensor(rgb)[None, :, None, None].expand(
+            1, 3, size, size,
+        )
+        out = un_embed.skip.up(embed.skip.down(
+            image.reshape(1, 3, 2, patch_size, 2, patch_size)
+            .permute(0, 2, 4, 1, 3, 5)
+            .reshape(1, 4, 3, patch_size, patch_size)
+        ))
+        mean = out.mean((0, 1, 3, 4))
+        print(f&quot;{name:&lt;5} in -&gt; out RGB&quot;,
+              [round(v, 2) for v in mean.tolist()])
+
+
+check_patch_colour()
+</pre></details>
+</div>
+    <span class="result-label">You should see:</span>
+    <div class="result">red   in -> out RGB [1.0, 0.0, 0.0]
+green in -> out RGB [0.0, 1.0, 0.0]
+blue  in -> out RGB [0.0, 0.0, 1.0]</div>
+  </li>
+  <li><span class="where">Then</span>
+    <div class="caution">A model trained with the old patch cells cannot be continued. Its weights were learned around a grey skip.</div>
+    <span class="do">Run the cells from the patch cell down to <code>init models</code> again, run <code>clear_logs()</code>, and start training.</span>
+  </li>
+</ol>
+
+<h2>What the new skip does</h2>
+<p class="small">Each color channel of a patch is average-pooled from 16 × 16 to 8 × 8, in 2 × 2 blocks. That gives 3 × 64 = 192 values, which fill
+the first 192 token channels. The last 64 are zero in the skip. The un-embed does the reverse: each value is repeated over its 2 × 2 block. So the
+default path through the model is a slightly blurred color image, not a sharp grey one. The learned linear branches are unchanged and add the
+detail.</p>
+<ul class="small">
+  <li><b>The pooled size always divides the patch size.</b> It is the largest such size that fits: 8 × 8 for <code>emb_dim</code> 192 to 767, and the
+      full 16 × 16 for 768 or more. Every pixel is then in exactly one block of the same size, so the skip treats all positions alike.
+      (My first version used 9 × 9 for width 256. Its blocks overlapped unevenly, so I changed it.)</li>
+  <li><b>Same class names and calls.</b> <code>LinSkipPatchEmbed</code> and <code>LinSkipUnEmbed</code> keep their arguments, so the model cell
+      does not change. <code>ChannelGroupResize</code> is gone.</li>
+</ul>
+
+<p class="small"><b>Tested</b> on the CPU against your notebook's cells. Old cells: an image and its grey version give identical tokens, and the
+un-embed skip output has R = G = B exactly. New cells: constant colors come back exact, a smooth color ramp comes back within 0.03, your model
+builds with them and trains. Not run on a GPU.</p>
+
+<p class="small"><a href="/unify_train.html">Training loop and seed plots</a> · <a href="/">Back to train-viz</a></p>
+</main>
+<script>
+  for (const box of document.querySelectorAll('.copy')) {
+    const pre = box.querySelector('pre');
+    const msg = box.querySelector('.msg');
+    box.querySelector('button').addEventListener('click', async () => {
+      const code = pre.textContent;
+      try { await navigator.clipboard.writeText(code); msg.textContent = 'Copied ' + (code.split('\n').length - 1) + ' lines'; }
+      catch (e) {
+        box.querySelector('details').open = true;
+        const r = document.createRange(); r.selectNodeContents(pre);
+        const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+        msg.textContent = 'Selected: press Ctrl+C (or Cmd+C) to copy';
+      }
+    });
+  }
+</script>
+</body>
+</html>

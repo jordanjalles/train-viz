@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Faster image loading</title>
+<style>
+  body { margin: 0; padding: 20px 16px 48px; background: #090c12; color: #e8ecf3; font: 16px/1.55 system-ui, sans-serif; }
+  main { max-width: 760px; margin: 0 auto; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  h2 { font-size: 16px; margin: 34px 0 6px; }
+  p, td, th, li { color: #a7b0c0; }
+  .lead { margin: 0 0 22px; }
+  code { color: #e8ecf3; font: 13px ui-monospace, Menlo, Consolas, monospace; background: rgba(255,255,255,0.06); padding: 1px 5px; border-radius: 5px; }
+  b { color: #e8ecf3; }
+  ol.steps { list-style: none; padding: 0; margin: 0; counter-reset: step; }
+  ol.steps > li { counter-increment: step; position: relative; padding: 14px 16px 14px 58px; margin: 0 0 10px; background: #121822; border: 1px solid rgba(255,255,255,0.09); border-radius: 14px; }
+  ol.steps > li::before { content: counter(step); position: absolute; left: 16px; top: 14px; width: 28px; height: 28px; border-radius: 50%; background: hsl(192 86% 64%); color: #06222a; font-weight: 700; display: grid; place-items: center; }
+  .where { display: block; font-size: 12.5px; color: #6b7482; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 2px; }
+  .do { color: #e8ecf3; }
+  button { font: inherit; font-size: 14px; font-weight: 600; padding: 8px 18px; border-radius: 999px; border: 0; background: hsl(192 86% 64%); color: #06222a; cursor: pointer; min-height: 40px; }
+  .copy { margin-top: 10px; }
+  .msg { margin-left: 10px; color: hsl(150 60% 55%); font-size: 14px; }
+  details { margin-top: 8px; }
+  summary { cursor: pointer; color: #6b7482; font-size: 13px; }
+  pre { margin: 8px 0 0; padding: 12px; background: #0b1018; border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; overflow-x: auto; font: 12.5px/1.45 ui-monospace, Menlo, Consolas, monospace; color: #e8ecf3; }
+  .result { margin-top: 10px; padding: 10px 12px; background: #0b1018; border-left: 3px solid hsl(150 60% 55%); border-radius: 6px; overflow-x: auto; white-space: pre; font: 12.5px/1.5 ui-monospace, Menlo, Consolas, monospace; color: #e8ecf3; }
+  .caution { margin-top: 10px; padding: 10px 12px; border-left: 3px solid #e3a13a; background: rgba(227,161,58,0.08); border-radius: 6px; color: #e8ecf3; font-size: 14.5px; }
+  .result-label { display: block; margin-top: 10px; font-size: 13px; color: #6b7482; }
+  table { border-collapse: collapse; width: 100%; margin: 4px 0; font-size: 15px; }
+  th, td { text-align: left; padding: 8px 12px 8px 0; border-bottom: 1px solid rgba(255,255,255,0.09); vertical-align: top; }
+  th { color: #e8ecf3; font-weight: 600; }
+  a { color: hsl(192 86% 64%); }
+  .small { font-size: 14.5px; }
+
+  .swap { display: grid; gap: 4px; margin-top: 8px; font: 12.5px ui-monospace, Menlo, Consolas, monospace; }
+  .swap span { padding: 5px 9px; border-radius: 8px; background: #0b1018; border: 1px solid rgba(255,255,255,0.1); overflow-x: auto; white-space: pre; }
+  .swap .old { color: #e66767; }
+  .swap .new { color: hsl(150 60% 55%); }
+</style>
+</head>
+<body>
+<main>
+<h1>Faster image loading</h1>
+<p class="lead">Notebook: <code>ImageNet-Unify.ipynb</code>. Five small edits, then four cells to run again. The model and its weights are not
+touched. These are the same edits the 3090 timing runs used.</p>
+
+<h2>Measured on the 3090 (baseline train step, batch 64)</h2>
+<table>
+  <tr><th>Loader</th><th>Per step, shards in memory</th><th>Per step, shards read from the disk</th></tr>
+  <tr><td>As in the notebook (2 workers)</td><td>about 99 ms</td><td>about 99 ms, with stalls</td></tr>
+  <tr><td>These edits (4 workers, one disk reader, reduced-size decode)</td><td>31 ms, the GPU's own speed</td><td>about 150 ms</td></tr>
+</table>
+<p class="small">Over a 4,000-step run the edits averaged 79 ms per step against about 99 ms: 1.25 times faster. The image decoding is no longer
+the limit. Reading 112 KiB per image from the dataset disk is.</p>
+
+<h2>Edits</h2>
+<ol class="steps">
+  <li><span class="where">First cell (hyperparameters)</span>
+    <span class="do">Change one value. With more workers, one shard per worker keeps memory use the same.</span>
+    <div class="swap"><span class="old">SHARDS_IN_RAM = 2</span><span class="new">SHARDS_IN_RAM = 1</span></div>
+  </li>
+  <li><span class="where">Cell <code>#imagenet full image</code></span>
+    <span class="do">Add this line as the first line inside <code>def __call__(self, image):</code>. It lets the JPEG decoder shrink the image while it
+    decodes.</span>
+    <div class="copy">
+<button>Copy the line</button><span class="msg" role="status"></span>
+<pre>        image.draft(&quot;RGB&quot;, (self.image_size, self.image_size))
+</pre>
+</div>
+  </li>
+  <li><span class="where">Cell <code>class BufferedImageNet(IterableDataset):</code></span>
+    <span class="do">Paste this above the line <code>class BufferedImageNet(IterableDataset):</code>, at the top of the cell.</span>
+    <div class="copy">
+<button>Copy the lock</button><span class="msg" role="status"></span>
+<pre>import multiprocessing
+
+# Shared by all loader workers (they are forked after this line runs).
+DISK_LOCK = multiprocessing.get_context(&quot;fork&quot;).Lock()
+
+
+</pre>
+</div>
+  </li>
+  <li><span class="where">Same cell, inside <code>def load_pool(pool_ids):</code></span>
+    <span class="do">Replace these six lines …</span>
+    <pre>                    tables.append(
+                        parquet.read(
+                            columns=[&quot;image&quot;, &quot;label&quot;],
+                            use_threads=False,
+                        )
+                    )
+</pre>
+    <span class="do">… with these eight. Only one worker then reads the disk at a time.</span>
+    <div class="copy">
+<button>Copy the new lines</button><span class="msg" role="status"></span>
+<pre>                    # one worker reads the disk at a time
+                    with DISK_LOCK:
+                        tables.append(
+                            parquet.read(
+                                columns=[&quot;image&quot;, &quot;label&quot;],
+                                use_threads=False,
+                            )
+                        )
+</pre>
+</div>
+  </li>
+  <li><span class="where">Cells <code>train_ds = BufferedImageNet(</code> and <code># Validation image loader</code></span>
+    <span class="do">In both cells, change the number of workers.</span>
+    <div class="swap"><span class="old">    num_workers=2,</span><span class="new">    num_workers=4,</span></div>
+  </li>
+</ol>
+
+<h2>Then run these cells again, in this order</h2>
+<ol class="steps">
+  <li><span class="where">First cell</span><span class="do">Run it. It only sets values.</span></li>
+  <li><span class="where">Cell <code>#imagenet full image</code></span><span class="do">Run it.</span></li>
+  <li><span class="where">Cell <code>class BufferedImageNet(IterableDataset):</code></span><span class="do">Run it.</span></li>
+  <li><span class="where">Cells <code>train_ds = BufferedImageNet(</code> and <code># Validation image loader</code></span>
+    <span class="do">Run both. They build the loaders again.</span>
+    <span class="result-label">Then check the speed in the next <code>step</code> lines of the training loop:</span>
+    <div class="result">step 12,500 | epoch 1 | 31 ms/step | 2066.0 img/s | …</div>
+  </li>
+</ol>
+
+<h2>Good to know</h2>
+<ul class="small">
+  <li><b>The speed comes in bursts.</b> While the shards are in the PC's memory cache, steps run at the GPU's speed. When the loader has to read new
+      shards from the dataset disk, steps slow to about 150 ms until it catches up. A long run reads far more than fits in memory.</li>
+  <li><b>The reduced-size decode changes the pixels a little.</b> On 256 real images: mean difference 0.007 on the 0 to 1 scale, 99% of values
+      within 0.066, largest 0.37 at sharp edges. The image mean does not shift. Leave out step 2 to keep the pixels exactly as before. Full decode
+      with 6 workers measured about 1,100 images per second on the 3090, which is 58 ms per step.</li>
+  <li><b>Why one disk reader at a time.</b> In a direct test the dataset disk read 154 MiB/s as one stream, and 9 to 32 MiB/s in total with 2 to 6
+      streams at once.</li>
+  <li><b>Evaluations before and after are not on the same images,</b> if you use the reduced-size decode: <code>get_split_loss</code> keeps its
+      first 20 batches. To compare cleanly, run <code>get_eval_batches.cache.clear()</code> and <code>eval_logs.clear()</code> after the edits.</li>
+  <li><b>What would remove the disk limit:</b> a pre-resized copy of the dataset, or the shards on a faster disk. Not part of these edits.</li>
+</ul>
+
+<p class="small"><a href="/unify_next.html">The setup checklist</a> · <a href="/">Back to train-viz</a></p>
+</main>
+<script>
+  for (const box of document.querySelectorAll('.copy')) {
+    const pre = box.querySelector('pre');
+    const msg = box.querySelector('.msg');
+    box.querySelector('button').addEventListener('click', async () => {
+      const code = pre.textContent;
+      try { await navigator.clipboard.writeText(code); msg.textContent = 'Copied ' + (code.split('\n').length - 1) + ' lines'; }
+      catch (e) {
+        const r = document.createRange(); r.selectNodeContents(pre);
+        const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+        msg.textContent = 'Selected: press Ctrl+C (or Cmd+C) to copy';
+      }
+    });
+  }
+</script>
+</body>
+</html>

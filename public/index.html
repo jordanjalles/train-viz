@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<title>train-viz · gpu-box</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='13' fill='%230b0e14' stroke='%23f2b258' stroke-width='2'/%3E%3Cpath d='M6 21 L12 14 L17 18 L26 8' fill='none' stroke='%2358d6f2' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/app.css">
+<script type="importmap">
+{
+  "imports": {
+    "math": "/vendor/math/index.js",
+    "math/time": "/vendor/math/time/index.js",
+    "math/color": "/vendor/math/color/index.js",
+    "math/noise": "/vendor/math/noise/index.js",
+    "math/random": "/vendor/math/random/index.js",
+    "math/shapes": "/vendor/math/shapes/index.js"
+  }
+}
+</script>
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-mark"></span>
+    <a class="brand-name" href="#">train-viz</a>
+    <span class="brand-host">gpu-box · GB10</span>
+  </div>
+  <nav class="tabs" id="nav" role="tablist" hidden></nav>
+  <div class="gpu-strip" id="gpu-strip" title="GPU telemetry (nvidia-smi, 2 s)"></div>
+</header>
+
+<main id="view" class="view"></main>
+
+<div id="toast" class="toast" hidden></div>
+<script type="module" src="/app.js"></script>
+</body>
+</html>

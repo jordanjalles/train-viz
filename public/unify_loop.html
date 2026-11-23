@@ -1,0 +1,841 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Looped sparse middle</title>
+<style>
+  body { margin: 0; padding: 20px 16px 48px; background: #090c12; color: #e8ecf3; font: 16px/1.55 system-ui, sans-serif; }
+  main { max-width: 760px; margin: 0 auto; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  h2 { font-size: 16px; margin: 34px 0 6px; }
+  p, td, th, li { color: #a7b0c0; }
+  .lead { margin: 0 0 22px; }
+  code { color: #e8ecf3; font: 13px ui-monospace, Menlo, Consolas, monospace; background: rgba(255,255,255,0.06); padding: 1px 5px; border-radius: 5px; }
+  b { color: #e8ecf3; }
+  ol.steps { list-style: none; padding: 0; margin: 0; counter-reset: step; }
+  ol.steps > li { counter-increment: step; position: relative; padding: 14px 16px 14px 58px; margin: 0 0 10px; background: #121822; border: 1px solid rgba(255,255,255,0.09); border-radius: 14px; }
+  ol.steps > li::before { content: counter(step); position: absolute; left: 16px; top: 14px; width: 28px; height: 28px; border-radius: 50%; background: hsl(192 86% 64%); color: #06222a; font-weight: 700; display: grid; place-items: center; }
+  .where { display: block; font-size: 12.5px; color: #6b7482; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 2px; }
+  .do { color: #e8ecf3; }
+  button { font: inherit; font-size: 14px; font-weight: 600; padding: 8px 18px; border-radius: 999px; border: 0; background: hsl(192 86% 64%); color: #06222a; cursor: pointer; min-height: 40px; }
+  .copy { margin-top: 10px; }
+  .msg { margin-left: 10px; color: hsl(150 60% 55%); font-size: 14px; }
+  details { margin-top: 8px; }
+  summary { cursor: pointer; color: #6b7482; font-size: 13px; }
+  pre { margin: 8px 0 0; padding: 12px; background: #0b1018; border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; overflow-x: auto; font: 12.5px/1.45 ui-monospace, Menlo, Consolas, monospace; color: #e8ecf3; }
+  .result { margin-top: 10px; padding: 10px 12px; background: #0b1018; border-left: 3px solid hsl(150 60% 55%); border-radius: 6px; overflow-x: auto; white-space: pre; font: 12.5px/1.5 ui-monospace, Menlo, Consolas, monospace; color: #e8ecf3; }
+  .caution { margin-top: 10px; padding: 10px 12px; border-left: 3px solid #e3a13a; background: rgba(227,161,58,0.08); border-radius: 6px; color: #e8ecf3; font-size: 14.5px; }
+  .result-label { display: block; margin-top: 10px; font-size: 13px; color: #6b7482; }
+  table { border-collapse: collapse; width: 100%; margin: 4px 0; font-size: 15px; }
+  th, td { text-align: left; padding: 8px 12px 8px 0; border-bottom: 1px solid rgba(255,255,255,0.09); vertical-align: top; }
+  th { color: #e8ecf3; font-weight: 600; }
+  a { color: hsl(192 86% 64%); }
+  .small { font-size: 14.5px; }
+</style>
+</head>
+<body>
+<main>
+<h1>Looped sparse middle with XSA and deep supervision</h1>
+<p class="lead">Notebook: <code>ImageNet-Unify.ipynb</code> (commit 5eb53a0). Ten steps, top of the notebook to the bottom.
+Cells marked <b>defines</b> are safe to run again at any time. Cells marked <b>acts</b> do one thing.</p>
+
+<h2>Steps</h2>
+<ol class="steps">
+  <li><span class="where">Zone 1: first cell (hyperparameters)</span>
+    <span class="do">Change <code>keep_ratio = 1.0</code> to <code>keep_ratio = 0.25</code>. Give <code>RUN_NAME</code> a new name.</span>
+    <span class="small">With <code>keep_ratio = 1.0</code> the sparse steps keep all tokens, so sparse and dense steps are the same.</span>
+  </li>
+  <li><span class="where">Zone 1: first cell, below the line <code>final_blocks = 2</code></span>
+    <span class="do">Paste these settings. <code>loop_fusion = False</code> with <code>keep_ratio = 1.0</code> and <code>sparse_per_dense = 0</code> gives the variant without the skip path.</span>
+    <div class="copy">
+<button>Copy the settings</button><span class="msg" role="status"></span>
+<details><summary>Show the code (9 lines)</summary><pre># looped sparse middle
+n_loops = 4           # passes through the middle in a train step
+sparse_per_dense = 4  # sparse steps before each dense step: S S S S D
+use_xsa = True        # XSA in the attention of the looped middle
+EVAL_LOOPS = (1, 2, 3, 4, 5, 6)  # loop counts that evaluate_loops tests
+# True: an exit fuses the loop state with the shallow stream.
+# False: no skip path. The loop state goes straight to the final
+# blocks. Needs keep_ratio = 1.0; set sparse_per_dense = 0 with it.
+loop_fusion = True
+</pre></details>
+</div>
+  </li>
+  <li><span class="where">Zone 3: new cell, directly below the cell <code>#define unified model</code></span>
+    <span class="do">Paste this cell. It defines the looped model.</span>
+    <div class="copy">
+<button>Copy the looped model (defines)</button><span class="msg" role="status"></span>
+<details><summary>Show the code (312 lines)</summary><pre># looped sparse middle with XSA (definitions only)
+# Running this cell builds nothing and changes nothing.
+
+
+class XSAMHA(MHA):
+    &quot;&quot;&quot;
+    MHA with XSA. After attention, each head&#x27;s output loses its
+    part along that token&#x27;s own value vector. Per token and per
+    head, before the heads merge and before out_proj.
+    &quot;&quot;&quot;
+
+    def forward(self, x, rope):
+
+        B, T, C = x.shape
+        nh = self.n_heads
+        hs = self.head_size
+
+        # same slicing as MHA: q, then k, then v
+        q, k, v = (
+            part.view(B, T, nh, hs).permute(0, 2, 1, 3)
+            for part in self.QKV(x).chunk(3, dim=-1)
+        )
+
+        q = self.q_norm(q)
+        k = self.k_norm(k)
+
+        q, k = apply_2d_rope(
+            q,
+            k,
+            rope=rope,
+        )
+
+        out = F.scaled_dot_product_attention(
+            q,
+            k,
+            v,
+            dropout_p=0.0,
+            is_causal=False,
+        )
+
+        # XSA
+        v_hat = F.normalize(v, dim=-1)
+        out = out - (out * v_hat).sum(dim=-1, keepdim=True) * v_hat
+
+        out = out.permute(0, 2, 1, 3).flatten(-2)  # (B, T, H*hs)
+
+        return self.out_proj(out)
+
+
+class XSABlock(Block):
+    # Block with XSA attention. Norms, gates and MLP are Block&#x27;s.
+
+    def __init__(self, n_heads, head_size, emb_dim):
+        super().__init__(n_heads, head_size, emb_dim)
+        self.MHA = XSAMHA(n_heads, head_size, emb_dim)
+
+
+class LoopedCoreTransformer(CoreTransformer):
+    &quot;&quot;&quot;
+    Shallow blocks → route tokens → [middle blocks] × n_loops
+    → exit path (restore, fuse with shallow, final blocks).
+
+    The same middle blocks run in every loop (shared weights).
+    The token set is chosen once, before the first loop.
+    The shallow stream is read only by exit paths. An exit path
+    returns a prediction and feeds nothing back into the loop.
+    &quot;&quot;&quot;
+
+    def __init__(
+        self,
+        emb_dim,
+        num_blocks,
+        n_heads,
+        head_size,
+        keep_ratio=1.0,
+        shallow_blocks=1,
+        final_blocks=1,
+        n_loops=4,
+        xsa=True,
+        skip_fusion=True,
+    ):
+        super().__init__(
+            emb_dim,
+            num_blocks,
+            n_heads,
+            head_size,
+            keep_ratio=keep_ratio,
+            shallow_blocks=shallow_blocks,
+            final_blocks=final_blocks,
+        )
+
+        if shallow_blocks + final_blocks &gt;= num_blocks:
+            raise ValueError(&quot;Need at least one middle block.&quot;)
+        if not skip_fusion and keep_ratio &lt; 1:
+            # Without fusion the final blocks get the loop state
+            # only, so it must hold every token.
+            raise ValueError(&quot;skip_fusion=False needs keep_ratio = 1.&quot;)
+
+        # False: no skip path around the loop (see exit_path).
+        self.use_fusion = bool(skip_fusion)
+        if n_loops &lt; 1:
+            raise ValueError(&quot;n_loops must be at least 1.&quot;)
+
+        # Loop count of a call that does not pass n_loops.
+        self.n_loops = n_loops
+
+        if xsa:
+            for i in range(self.shallow_blocks, self.middle_end):
+                self.blocks[i] = XSABlock(
+                    n_heads, head_size, emb_dim,
+                )
+
+        if self.use_fusion and not hasattr(self, &quot;fusion&quot;):
+            # keep_ratio = 1: the parent made no fusion layer.
+            # Exit paths always fuse, so make it here.
+            self.fusion = nn.Linear(2 * emb_dim, emb_dim)
+
+            with torch.no_grad():
+                eye = torch.eye(emb_dim)
+                self.fusion.weight.copy_(
+                    torch.cat((0.5 * eye, 0.5 * eye), dim=1)
+                )
+                self.fusion.bias.zero_()
+
+    def exit_path(self, deep, shallow, token_ids, rope, time_emb):
+        # Read-only branch: loop state → prediction features.
+        if token_ids is not None:
+            # Restore deep features to their original positions.
+            deep = torch.zeros_like(shallow).scatter(
+                dim=1,
+                index=token_ids.unsqueeze(-1).expand(
+                    -1, -1, shallow.shape[-1],
+                ),
+                src=deep.to(shallow.dtype),
+            )
+
+        if self.use_fusion:
+            x = self.fusion(torch.cat((shallow, deep), dim=-1))
+        else:
+            # No skip path: the final blocks see the loop state only.
+            x = deep
+
+        for i in range(self.middle_end, len(self.blocks)):
+            x = self.blocks[i](x, rope, time_emb)
+
+        return self.norm_out(x)
+
+    def forward(
+        self,
+        x,
+        patch_rows,
+        patch_cols,
+        time_emb,
+        keep_indices=None,
+        n_loops=None,
+        all_exits=False,
+        sparse=None,
+    ):
+        # n_loops=None: use self.n_loops.
+        # all_exits=True: return a list, one exit per loop.
+        # sparse=None: sparse in training mode when sparse_middle
+        # is on, dense in eval mode. True / False: as given.
+
+        if n_loops is None:
+            n_loops = self.n_loops
+
+        x = self.norm_in(x)
+
+        rope = self.rope_tables(patch_rows, patch_cols)
+
+        # Input masking: x already contains only visible patches.
+        if keep_indices is not None:
+            rope = self.gather_rope(rope, keep_indices)
+
+        B, T, C = x.shape
+        P = rope[0].shape[-2]
+        L = T - P
+
+        if sparse is None:
+            sparse = self.training and self.sparse_middle
+
+        use_sparse = bool(sparse) and self.keep_ratio &lt; 1
+
+        # Shallow path sees all tokens.
+        for i in range(self.shallow_blocks):
+            x = self.blocks[i](x, rope, time_emb)
+
+        shallow = x
+        token_ids = None
+
+        if use_sparse:
+            # One token set for the whole recurrent pass.
+            keep_latents = min(L, max(1, int(L * self.keep_ratio)))
+            keep_patches = min(P, max(1, int(P * self.keep_ratio)))
+
+            latent_ids = self.sample_indices(
+                B, L, keep_latents, x.device,
+            )
+            patch_ids = self.sample_indices(
+                B, P, keep_patches, x.device,
+            )
+
+            token_ids = torch.cat(
+                (latent_ids, L + patch_ids), dim=1,
+            )
+
+            deep = self.gather_tokens(shallow, token_ids)
+            middle_rope = self.gather_rope(rope, patch_ids)
+        else:
+            deep = shallow
+            middle_rope = rope
+
+        exits = []
+
+        for loop in range(n_loops):
+
+            for i in range(self.shallow_blocks, self.middle_end):
+                deep = self.blocks[i](deep, middle_rope, time_emb)
+
+            if all_exits or loop == n_loops - 1:
+                exits.append(
+                    self.exit_path(
+                        deep, shallow, token_ids, rope, time_emb,
+                    )
+                )
+
+        return exits if all_exits else exits[-1]
+
+
+class LoopedImageTransformer(ImageTransformer):
+    # ImageTransformer with the looped core.
+    # model(images, t) works as before: self.n_loops loops, dense
+    # in eval mode. So samplers and split losses need no change.
+
+    def __init__(
+        self,
+        channels,
+        patch_size,
+        emb_dim,
+        num_blocks,
+        n_heads,
+        head_size,
+        keep_ratio,
+        shallow_blocks,
+        final_blocks,
+        n_loops=4,
+        xsa=True,
+        skip_fusion=True,
+    ):
+        super().__init__(
+            channels,
+            patch_size,
+            emb_dim,
+            num_blocks,
+            n_heads,
+            head_size,
+            keep_ratio,
+            shallow_blocks,
+            final_blocks,
+        )
+
+        self.core_transformer = LoopedCoreTransformer(
+            emb_dim=emb_dim,
+            num_blocks=num_blocks,
+            n_heads=n_heads,
+            head_size=head_size,
+            keep_ratio=keep_ratio,
+            shallow_blocks=shallow_blocks,
+            final_blocks=final_blocks,
+            n_loops=n_loops,
+            xsa=xsa,
+            skip_fusion=skip_fusion,
+        )
+
+    def forward(
+        self, images, time,
+        n_loops=None, all_exits=False, sparse=None,
+    ):
+
+        B, C, H, W = images.shape
+
+        assert H % self.patch_size == 0
+        assert W % self.patch_size == 0
+
+        patch_rows = H // self.patch_size
+        patch_cols = W // self.patch_size
+
+        patches = self.embed(images)
+
+        time_emb = self.timestep_embedder(time)
+
+        out = self.core_transformer(
+            patches,
+            patch_rows,
+            patch_cols,
+            time_emb,
+            keep_indices=None,
+            n_loops=n_loops,
+            all_exits=all_exits,
+            sparse=sparse,
+        )
+
+        def to_image(tokens):
+            # every exit uses the same output head
+            return torch.sigmoid(
+                self.un_embed(tokens, patch_rows, patch_cols)
+            )
+
+        if all_exits:
+            return [to_image(tokens) for tokens in out]
+
+        return to_image(out)
+</pre></details>
+</div>
+  </li>
+  <li><span class="where">Zone 3: the cell <code># --------------------Def Init Models (and optimizers)</code></span>
+    <span class="do">Replace the cell with this. The only change: it builds <code>LoopedImageTransformer</code>.</span>
+    <div class="copy">
+<button>Copy the init cell (defines)</button><span class="msg" role="status"></span>
+<details><summary>Show the code (44 lines)</summary><pre># --------------------Def Init Models (and optimizers) --------------------
+
+
+def init_models():
+
+    model = LoopedImageTransformer(
+        channels = c,
+        patch_size = patch_size,
+        emb_dim = emb_dim,
+        num_blocks = num_blocks,
+        n_heads = n_heads,
+        head_size = head_size,
+        keep_ratio = keep_ratio,
+        shallow_blocks = shallow_blocks,
+        final_blocks = final_blocks,
+        n_loops = n_loops,
+        xsa = use_xsa,
+        skip_fusion = loop_fusion,
+    )
+
+    device = &quot;cuda&quot; if torch.cuda.is_available() else &quot;cpu&quot;
+
+    model.to(device)
+
+    # -------------------- Optimizers --------------------
+
+    parameters = (
+        list(model.parameters())
+    )
+    n_parameters = sum(p.numel() for p in parameters)
+    print(f&quot;{n_parameters:,} ae parameters&quot;)
+
+    optimizer = torch.optim.AdamW(
+        parameters,
+        lr=lr,
+        betas=(beta1, beta2),
+        fused=True,
+    )
+
+    return (
+        model,
+        optimizer,
+        device,
+    )
+</pre></details>
+</div>
+  </li>
+  <li><span class="where">Zone 3: new cell, directly below the cell <code>#log metrics (definitions only)</code></span>
+    <span class="do">Paste this cell. It defines the check, the loop-count evals and the chart.</span>
+    <div class="copy">
+<button>Copy the loop helpers (defines)</button><span class="msg" role="status"></span>
+<details><summary>Show the code (164 lines)</summary><pre># looped middle: checks, loop-count evals, charts (definitions only)
+import contextlib
+
+
+@contextlib.contextmanager
+def use_loops(n):
+    # Inside the &quot;with&quot;, model(images, t) runs n middle loops.
+    # Example: with use_loops(6): plot_seeds()
+    core = model.core_transformer
+    saved = core.n_loops
+    core.n_loops = int(n)
+    try:
+        yield
+    finally:
+        core.n_loops = saved
+
+
+def is_sparse_step(step):
+    # S S S S D, S S S S D, ... for sparse_per_dense = 4.
+    return step % (sparse_per_dense + 1) &lt; sparse_per_dense
+
+
+def check_looped_model():
+    # Smoke test. Counts the tokens every block sees in one sparse
+    # and one dense train-mode call, and checks the invariants.
+    core = model.core_transformer
+    was_training = model.training
+    model.train()
+
+    seen = []
+    hooks = [
+        block.register_forward_hook(
+            lambda m, args, out, i=i: seen.append((i, out.shape[1]))
+        )
+        for i, block in enumerate(core.blocks)
+    ]
+
+    images = torch.rand(
+        2, 3, IMAGE_SIZE, IMAGE_SIZE, device=device,
+    )
+    t = torch.rand(2, device=device)
+    middle = range(core.shallow_blocks, core.middle_end)
+
+    try:
+        for name, sparse in ((&quot;sparse&quot;, True), (&quot;dense&quot;, False)):
+            seen.clear()
+            with torch.no_grad():
+                exits = model(images, t, all_exits=True, sparse=sparse)
+
+            tokens = {
+                i: sorted({n for j, n in seen if j == i})
+                for i in range(len(core.blocks))
+            }
+            calls = {
+                i: sum(j == i for j, _ in seen)
+                for i in range(len(core.blocks))
+            }
+            mid = [tokens[i] for i in middle]
+            print(
+                f&quot;{name:&lt;6} step: {len(exits)} exits | &quot;
+                f&quot;shallow blocks see {tokens[0][0]} tokens | &quot;
+                f&quot;middle blocks see {mid[0][0]} tokens, &quot;
+                f&quot;{calls[middle[0]]} times each | &quot;
+                f&quot;final blocks see {tokens[len(core.blocks) - 1][0]}&quot;
+                f&quot; tokens, {calls[len(core.blocks) - 1]} times each&quot;
+            )
+            assert len(exits) == core.n_loops
+            assert all(len(m) == 1 for m in mid), &quot;token set changed&quot;
+            assert all(calls[i] == core.n_loops for i in middle)
+            shallow = range(core.shallow_blocks)
+            assert all(calls[i] == 1 for i in shallow)
+    finally:
+        for hook in hooks:
+            hook.remove()
+        model.train(was_training)
+
+    xsa = [type(b.MHA).__name__ == &quot;XSAMHA&quot; for b in core.blocks]
+    print(
+        &quot;XSA attention in blocks &quot;
+        f&quot;{[i for i, on in enumerate(xsa) if on]} &quot;
+        f&quot;(middle blocks are {list(middle)})&quot;
+    )
+    print(
+        f&quot;train: {core.n_loops} loops, keep_ratio {core.keep_ratio}, &quot;
+        f&quot;{sparse_per_dense} sparse steps then 1 dense step&quot;
+    )
+    print(
+        &quot;exit path: &quot;
+        + (&quot;fusion of the shallow stream and the loop state&quot;
+           if core.use_fusion else
+           &quot;NO fusion, the final blocks see the loop state only&quot;)
+    )
+
+
+def get_loop_losses(split=&quot;test&quot;, loops=None, n_batches=20):
+    # The split loss for each loop count: same weights, same
+    # images, same t and noise. Dense (eval mode).
+    out = {}
+    for n in (loops or EVAL_LOOPS):
+        with use_loops(n):
+            out[n] = get_split_loss(split, n_batches).item()
+    return out
+
+
+def evaluate_loops(step, split=&quot;test&quot;):
+    # Logs and prints the split loss for every loop count.
+    losses = get_loop_losses(split)
+
+    eval_logs[&quot;loops_step&quot;].append(step)
+    for n, loss in losses.items():
+        eval_logs[f&quot;{split}_loss_L{n}&quot;].append(loss)
+
+    print(
+        f&quot;LOOPS step {step:,} | {split}-loss by loop count: &quot;
+        + &quot; | &quot;.join(f&quot;{n}: {loss:.5f}&quot; for n, loss in losses.items())
+    )
+
+
+def plot_loop_losses(split=&quot;test&quot;, start=0):
+    # Left: the split loss of each loop count over training.
+    # Right: the latest split loss against the loop count.
+    import matplotlib.pyplot as plt
+
+    steps = eval_logs[&quot;loops_step&quot;]
+    loops = [
+        n for n in EVAL_LOOPS
+        if eval_logs.get(f&quot;{split}_loss_L{n}&quot;)
+    ]
+    if not steps or not loops:
+        print(&quot;no loop evals yet: run evaluate_loops(step) first&quot;)
+        return
+
+    keep = [i for i, s in enumerate(steps) if s &gt;= start]
+    trained = model.core_transformer.n_loops
+    blues = plt.cm.Blues
+    fig, (left, right) = plt.subplots(1, 2, figsize=(12, 4))
+
+    for rank, n in enumerate(loops):
+        values = eval_logs[f&quot;{split}_loss_L{n}&quot;]
+        left.plot(
+            [steps[i] for i in keep],
+            [values[i] for i in keep],
+            color=blues(0.35 + 0.65 * rank / max(len(loops) - 1, 1)),
+            linewidth=2.5 if n == trained else 1.2,
+            label=f&quot;{n} loops&quot; + (&quot; (trained)&quot; if n == trained else &quot;&quot;),
+        )
+
+    left.set_xlabel(&quot;train step&quot;)
+    left.set_ylabel(f&quot;{split} loss&quot;)
+    left.set_title(f&quot;{split} loss by loop count&quot;)
+    left.legend()
+    left.grid(alpha=0.3)
+
+    latest = [eval_logs[f&quot;{split}_loss_L{n}&quot;][-1] for n in loops]
+    right.plot(loops, latest, marker=&quot;o&quot;, color=blues(0.8))
+    right.axvline(trained, color=&quot;gray&quot;, linestyle=&quot;:&quot;, linewidth=1)
+    right.set_xticks(loops)
+    right.set_xlabel(&quot;loops at evaluation (dotted: trained)&quot;)
+    right.set_ylabel(f&quot;{split} loss&quot;)
+    right.set_title(f&quot;step {steps[-1]:,}&quot;)
+    right.grid(alpha=0.3)
+
+    plt.tight_layout()
+    plt.show()
+</pre></details>
+</div>
+  </li>
+  <li><span class="where">Zone 4: new cell, directly below the <code>init models</code> banner cell</span>
+    <span class="do">Paste this one-line cell.</span>
+    <div class="copy">
+<button>Copy the check (acts)</button><span class="msg" role="status"></span>
+<details><summary>Show the code (1 lines)</summary><pre>check_looped_model()
+</pre></details>
+</div>
+  </li>
+  <li><span class="where">Zone 5: new cell, directly below the cell <code>################## Training Step Methods</code></span>
+    <span class="do">Paste this cell. It defines the train step with deep supervision.</span>
+    <div class="copy">
+<button>Copy the train step (defines)</button><span class="msg" role="status"></span>
+<details><summary>Show the code (79 lines)</summary><pre>################## Looped Training Step ########################
+# definitions only
+
+
+def make_looped_train_step():
+
+    def train_step(images, optimizer, sparse):
+        # sparse=True: the middle sees keep_ratio of the tokens.
+        # sparse=False: all tokens. Same weights, same loss rule.
+
+        optimizer.zero_grad(set_to_none=True)
+
+        images = images.to(device, non_blocking=True)
+
+        B = images.shape[0]
+
+        # t=0 -&gt; pure noise
+        # t=1 -&gt; clean image
+        u = torch.randn(
+            B,
+            device=images.device,
+            dtype=torch.float32,
+        ) * t_logit_std + t_logit_mean
+
+        t = torch.sigmoid(u)
+
+        noise = torch.randn_like(images)
+
+        t_img = t[:, None, None, None]
+
+        noised_images = (
+            t_img * images
+            + (1.0 - t_img) * noise
+        )
+
+        with torch.autocast(
+            device_type=&quot;cuda&quot;,
+            dtype=torch.bfloat16,
+        ):
+
+            # One clean-image prediction after every loop.
+            exits = model(
+                noised_images, t, all_exits=True, sparse=sparse,
+            )
+
+            # JiT x-prediction parameterized as a v-loss.
+            denom = (1.0 - t_img).clamp_min(0.05)
+            v_target = (images - noised_images) / denom
+
+            exit_losses = [
+                F.mse_loss(
+                    ((x_pred - noised_images) / denom).float(),
+                    v_target.float(),
+                )
+                for x_pred in exits
+            ]
+
+            # Deep supervision: the last loop and the mean of the
+            # loops before it weigh the same.
+            loss_final = exit_losses[-1]
+
+            if len(exit_losses) &gt; 1:
+                loss_intermediate = torch.stack(
+                    exit_losses[:-1]
+                ).mean()
+                loss = 0.5 * loss_intermediate + 0.5 * loss_final
+            else:
+                loss = loss_final
+
+        loss.backward()
+        optimizer.step()
+
+        return {
+            &quot;loss&quot;: loss.detach(),
+            &quot;loss_final&quot;: loss_final.detach(),
+            &quot;exit_losses&quot;: torch.stack(exit_losses).detach(),
+        }
+
+    return train_step
+</pre></details>
+</div>
+  </li>
+  <li><span class="where">Zone 5: the cell <code>#make and compile the training steps</code></span>
+    <span class="do">Replace the cell with this.</span>
+    <div class="copy">
+<button>Copy the compile cell (acts)</button><span class="msg" role="status"></span>
+<details><summary>Show the code (3 lines)</summary><pre>#make and compile the training steps
+torch.set_float32_matmul_precision(&#x27;high&#x27;)
+train_step = torch.compile(make_looped_train_step())
+</pre></details>
+</div>
+  </li>
+  <li><span class="where">Zone 5: the cell <code># MAIN TRAINING LOOP</code></span>
+    <span class="do">Replace the cell with this.</span>
+    <div class="copy">
+<button>Copy the training loop (acts)</button><span class="msg" role="status"></span>
+<details><summary>Show the code (46 lines)</summary><pre># MAIN TRAINING LOOP
+######################################################################
+num_epochs = 20
+report_every = 500      # steps between speed / loss lines
+eval_every = 2_000      # steps between split losses
+preview_every = 10_000  # steps between sample previews
+
+model.train()
+ensure_loader_alive(train_dataloader)
+batches_per_epoch = len(train_dataloader)
+readout = TrainReadout(batches_per_epoch)
+
+evaluate(len(logs[&quot;loss&quot;]), label=&quot;START&quot;)
+
+for epoch in range(num_epochs):
+
+    for batch_step, (images, _) in enumerate(train_dataloader):
+
+        # S S S S D: four sparse steps, then one dense step
+        sparse = is_sparse_step(len(logs[&quot;loss&quot;]))
+
+        metrics = train_step(images, optimizer, sparse)
+
+        log_metrics(
+            loss=metrics[&quot;loss&quot;],
+            loss_final=metrics[&quot;loss_final&quot;],
+        )
+        readout.tick(images.shape[0])
+        step = len(logs[&quot;loss&quot;])
+
+        if step % report_every == 0:
+            readout.report(step, epoch)
+
+        if step % eval_every == 0:
+            evaluate(step)
+            evaluate_loops(step)
+            readout.reset()
+
+        if step % preview_every == 0:
+            preview(step)
+            readout.reset()
+
+    print(&quot;-&quot; * 62)
+    evaluate(len(logs[&quot;loss&quot;]), label=f&quot;EPOCH {epoch + 1}&quot;)
+    print(&quot;-&quot; * 62)
+    readout.reset()
+</pre></details>
+</div>
+  </li>
+  <li><span class="where">Zone 6: new cell, below the history cells</span>
+    <span class="do">Paste this one-line cell. Run it after the first <code>LOOPS</code> line appears.</span>
+    <div class="copy">
+<button>Copy the chart call (acts)</button><span class="msg" role="status"></span>
+<details><summary>Show the code (1 lines)</summary><pre>plot_loop_losses()
+</pre></details>
+</div>
+  </li>
+</ol>
+
+<h2>Run it</h2>
+<ol class="steps">
+  <li><div class="caution">A model trained with the old cells cannot be continued. The looped model has other weights (fusion layer, XSA blocks).</div>
+    <span class="do">Restart the kernel. Run every cell from the top down to the check cell of step 6.</span>
+    <span class="result-label">The check cell should print (128 px, keep_ratio 0.25, 8 blocks):</span>
+    <div class="result">sparse step: 4 exits | shallow blocks see 64 tokens | middle blocks see 16 tokens, 4 times each | final blocks see 64 tokens, 4 times each
+dense  step: 4 exits | shallow blocks see 64 tokens | middle blocks see 64 tokens, 4 times each | final blocks see 64 tokens, 4 times each
+XSA attention in blocks [2, 3, 4, 5] (middle blocks are [2, 3, 4, 5])
+train: 4 loops, keep_ratio 0.25, 4 sparse steps then 1 dense step</div>
+  </li>
+  <li><span class="do">Run the cells down to the main training loop, then run the loop.</span>
+    <span class="result-label">Every <code>eval_every</code> steps you should see one more line:</span>
+    <div class="result">LOOPS step 2,000 | test-loss by loop count: 1: ... | 2: ... | 3: ... | 4: ... | 5: ... | 6: ...</div>
+  </li>
+  <li><span class="do">Run <code>plot_loop_losses()</code> (step 10) to chart the test loss of all six loop counts.</span></li>
+</ol>
+
+<h2>How each line of the spec is built</h2>
+<ul class="small">
+  <li><b>Loop:</b> <code>LoopedCoreTransformer.forward</code> runs the shallow blocks once, then the same middle blocks <code>n_loops</code> times.
+      No new weights per loop, and no loop embedding.</li>
+  <li><b>Sparse routing:</b> your <code>sample_indices</code> runs once, before the first loop. All loops use that token set.</li>
+  <li><b>Exit path:</b> <code>exit_path</code> restores the tokens, fuses with the shallow stream, and runs the final blocks. Its result goes
+      only to the output head. The loop variable <code>deep</code> never reads it.</li>
+  <li><b>XSA:</b> <code>XSAMHA</code> is your <code>MHA</code> with the two XSA lines after the attention call and before the heads merge. Only the
+      middle blocks use it (<code>XSABlock</code>). Pre-norm, time conditioning, QK norm, RoPE, post-norm and gate are your <code>Block</code>.</li>
+  <li><b>Deep supervision:</b> the train step gets one image per loop and uses your v-loss on each:
+      <code>loss = 0.5 * mean(L1, L2, L3) + 0.5 * L4</code>. The same rule in sparse and dense steps.</li>
+  <li><b>S S S S D:</b> <code>is_sparse_step(step)</code> in the loop cell. One model, one optimizer, one compiled step function with a
+      <code>sparse</code> argument.</li>
+  <li><b>Evaluation and sampling:</b> <code>model(images, t)</code> in eval mode is dense with <code>n_loops</code> loops, so your samplers and
+      <code>get_split_loss</code> work unchanged. For another loop count: <code>with use_loops(6): plot_seeds()</code>.</li>
+  <li><b>Logs:</b> <code>logs["loss"]</code> is the deep-supervision loss. <code>logs["loss_final"]</code> is the loss of the last loop, the
+      number to compare with a model without loops.</li>
+</ul>
+
+<h2>Three choices I made where the spec was open</h2>
+<ul class="small">
+  <li><b>Fusion layer in dense steps:</b> dense steps also fuse the loop state with the shallow stream (the spec says "the exact same fusion").
+      So the model always has a fusion layer, also with <code>keep_ratio = 1</code>.</li>
+  <li><b>Random RoPE scale:</b> your <code>rope_tables</code> draws one scale per call in training. One draw now serves all loops and all exits
+      of a step.</li>
+  <li><b>Cost of a step:</b> the final blocks and the output head run once per loop. A dense step runs the middle 4 times on all tokens.
+      I did not measure the step time at full size.</li>
+</ul>
+
+<p class="small"><b>Tested</b> against your notebook's cells with tiny settings and a fake ImageNet, on the CPU and with the compiled step on the
+Spark GPU: the parameter count is the same for 1 and 6 loops. XSA leaves no part of a head's output along its own value vector (cosine 0.29 before, below 1e-6 after) and is only in the middle blocks. Loop k gives the same prediction with or without the other exits, so no exit feeds the loop. Tokens are chosen once per pass. The loss equals the rule above. Every weight gets a gradient in a sparse and in a dense step. Evaluation with 1 to 6 loops and dense sampling work. The loop gives the S S S S D order. The compiled train step runs both step kinds and does not recompile after the first sparse and the first dense step. Not trained at full size.</p>
+
+<p class="small"><a href="/unify_next.html">Unify checklist</a> · <a href="/">Back to train-viz</a></p>
+</main>
+<script>
+  for (const box of document.querySelectorAll('.copy')) {
+    const pre = box.querySelector('pre');
+    const msg = box.querySelector('.msg');
+    box.querySelector('button').addEventListener('click', async () => {
+      const code = pre.textContent;
+      try { await navigator.clipboard.writeText(code); msg.textContent = 'Copied ' + (code.split('\n').length - 1) + ' lines'; }
+      catch (e) {
+        box.querySelector('details').open = true;
+        const r = document.createRange(); r.selectNodeContents(pre);
+        const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+        msg.textContent = 'Selected: press Ctrl+C (or Cmd+C) to copy';
+      }
+    });
+  }
+</script>
+</body>
+</html>

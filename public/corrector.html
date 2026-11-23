@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Corrections per step</title>
+<style>
+  :root { --bg: #090c12; --panel: #0f141d; --line: rgba(255,255,255,0.13); --ink: #e8ecf3; --ink2: #a7b0c0; --accent: hsl(192 86% 64%); }
+  @media (prefers-color-scheme: light) {
+    :root { --bg: #f5f6f8; --panel: #ffffff; --line: rgba(0,0,0,0.14); --ink: #141821; --ink2: #4c5566; --accent: hsl(192 80% 32%); }
+  }
+  body { margin: 0; padding: 20px 16px 48px; background: var(--bg); color: var(--ink); font: 15px/1.5 system-ui, sans-serif; }
+  main { max-width: 1080px; margin: 0 auto; }
+  h1 { font-size: 20px; margin: 0 0 6px; }
+  h2 { font-size: 16px; margin: 30px 0 4px; }
+  p { color: var(--ink2); margin: 0 0 12px; max-width: 78ch; }
+  a { color: var(--accent); }
+  img { display: block; width: 100%; height: auto; border-radius: 8px; border: 1px solid var(--line); background: #fff; }
+  svg { display: block; width: 100%; max-width: 720px; height: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; }
+  .grid { stroke: var(--line); stroke-width: 1; }
+  .tick, .reflabel { fill: var(--ink2); font-size: 12px; }
+  .val { fill: var(--ink); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .line { fill: none; stroke: var(--accent); stroke-width: 2; }
+  .dot { fill: var(--accent); stroke: var(--panel); stroke-width: 2; }
+  .ref { stroke: var(--ink2); stroke-width: 1.5; stroke-dasharray: 5 5; }
+  .rows { display: grid; grid-template-columns: auto 1fr; gap: 0 10px; align-items: stretch; }
+  .klabels { display: grid; color: var(--ink2); font-size: 13px; font-variant-numeric: tabular-nums; }
+  .klabels span { display: flex; align-items: center; white-space: nowrap; }
+  table { border-collapse: collapse; margin: 6px 0 4px; font-size: 14px; font-variant-numeric: tabular-nums; }
+  th, td { text-align: right; padding: 5px 12px; border-bottom: 1px solid var(--line); }
+  th { color: var(--ink2); font-weight: 600; }
+  td.note, th.note { text-align: left; color: var(--ink2); }
+  .wrap { overflow-x: auto; }
+</style>
+</head>
+<body>
+<main>
+<h1>Correction training: samples and FID per number of corrections K</h1>
+<p>Run: <code>unify-wclamp01-corrector-seed2-inet128-100k</code>, EMA weights, step 100,000.
+Blocks 1 to 4 predict the clean image. Blocks 5 to 8 correct that image. The sampler applies the correction K times in each step.
+K = 1 is the trained setting. <a href="/">Back to train-viz</a></p>
+
+<h2>FID per K</h2>
+<p>16 Euler steps, 10,000 samples. Lower is better. Move the pointer over a point for the block evaluations.</p>
+<svg viewBox="0 0 720 320" role="img" aria-label="FID per number of corrections K">
+<line class="grid" x1="56" x2="696" y1="276.0" y2="276.0"/><text class="tick" x="48" y="280.0" text-anchor="end">133</text>
+<line class="grid" x1="56" x2="696" y1="212.0" y2="212.0"/><text class="tick" x="48" y="216.0" text-anchor="end">141</text>
+<line class="grid" x1="56" x2="696" y1="148.0" y2="148.0"/><text class="tick" x="48" y="152.0" text-anchor="end">148</text>
+<line class="grid" x1="56" x2="696" y1="84.0" y2="84.0"/><text class="tick" x="48" y="88.0" text-anchor="end">156</text>
+<line class="grid" x1="56" x2="696" y1="20.0" y2="20.0"/><text class="tick" x="48" y="24.0" text-anchor="end">164</text>
+<text class="tick" x="56.0" y="294" text-anchor="middle">0</text>
+<text class="tick" x="136.0" y="294" text-anchor="middle">1</text>
+<text class="tick" x="216.0" y="294" text-anchor="middle">2</text>
+<text class="tick" x="296.0" y="294" text-anchor="middle">3</text>
+<text class="tick" x="376.0" y="294" text-anchor="middle">4</text>
+<text class="tick" x="456.0" y="294" text-anchor="middle">5</text>
+<text class="tick" x="536.0" y="294" text-anchor="middle">6</text>
+<text class="tick" x="616.0" y="294" text-anchor="middle">7</text>
+<text class="tick" x="696.0" y="294" text-anchor="middle">8</text>
+<text class="tick" x="376" y="314" text-anchor="middle">corrections per sampler step (K)</text>
+<line class="ref" x1="56" x2="696" y1="243.3" y2="243.3"/><text class="reflabel" x="696" y="237.3" text-anchor="end">baseline, 8 blocks: 136.8</text>
+<polyline class="line" points="56.0,52.7 136.0,116.7 216.0,167.9 376.0,199.6 696.0,88.9"/>
+<g><circle class="dot" cx="56.0" cy="52.7" r="5"><title>K = 0: FID 160.1, 64 block evaluations</title></circle><text class="val" x="56.0" y="42.7" text-anchor="middle">160.1</text></g>
+<g><circle class="dot" cx="136.0" cy="116.7" r="5"><title>K = 1: FID 152.3, 128 block evaluations</title></circle><text class="val" x="136.0" y="106.7" text-anchor="middle">152.3</text></g>
+<g><circle class="dot" cx="216.0" cy="167.9" r="5"><title>K = 2: FID 146.0, 192 block evaluations</title></circle><text class="val" x="216.0" y="157.9" text-anchor="middle">146.0</text></g>
+<g><circle class="dot" cx="376.0" cy="199.6" r="5"><title>K = 4: FID 142.1, 320 block evaluations</title></circle><text class="val" x="376.0" y="189.6" text-anchor="middle">142.1</text></g>
+<g><circle class="dot" cx="696.0" cy="88.9" r="5"><title>K = 8: FID 155.7, 576 block evaluations</title></circle><text class="val" x="696.0" y="78.9" text-anchor="middle">155.7</text></g>
+</svg>
+
+<h2>Samples per K</h2>
+<p>Each column is one seed. Each row is one K, 20 Euler steps. This is the grid of the run itself. The grid for K = 0 to 6 replaces it when it is rendered.</p>
+<div class="rows">
+  <div class="klabels"><span>K = 0</span><span>K = 1</span><span>K = 2</span><span>K = 4</span><span>K = 8</span></div>
+  <img src="corrector/grid.png" alt="Samples: one row per K, the same 8 seeds in every row" loading="lazy">
+</div>
+
+<h2>All scores</h2>
+<div class="wrap">
+<table>
+  <tr><th>K</th><th>Sampler steps</th><th>Block evaluations</th><th>FID</th><th>KID × 1000</th><th>fd_ae_z</th><th class="note">Note</th></tr>
+<tr><td>0</td><td>16</td><td>64</td><td>160.1</td><td>140.7</td><td>334</td><td class='note'>base denoiser alone</td></tr>
+<tr><td>1</td><td>16</td><td>128</td><td>152.3</td><td>142.6</td><td>387</td><td class='note'>the trained setting</td></tr>
+<tr><td>2</td><td>16</td><td>192</td><td>146.0</td><td>133.1</td><td>417</td><td class='note'></td></tr>
+<tr><td>3</td><td>16</td><td>256</td><td>pending</td><td>pending</td><td>pending</td><td class='note'></td></tr>
+<tr><td>4</td><td>16</td><td>320</td><td>142.1</td><td>123.6</td><td>409</td><td class='note'></td></tr>
+<tr><td>5</td><td>16</td><td>384</td><td>pending</td><td>pending</td><td>pending</td><td class='note'></td></tr>
+<tr><td>6</td><td>16</td><td>448</td><td>pending</td><td>pending</td><td>pending</td><td class='note'></td></tr>
+<tr><td>8</td><td>16</td><td>576</td><td>155.7</td><td>117.1</td><td>522</td><td class='note'></td></tr>
+<tr><td>0</td><td>32</td><td>128</td><td>pending</td><td>pending</td><td>pending</td><td class='note'>same cost as K = 1 at 16 steps</td></tr>
+<tr><td>1</td><td>24</td><td>192</td><td>149.6</td><td>136.9</td><td>289</td><td class='note'>same cost as K = 2 at 16 steps</td></tr>
+<tr><td>4</td><td>8</td><td>160</td><td>pending</td><td>pending</td><td>pending</td><td class='note'>few sampler steps, many corrections</td></tr>
+<tr><td>0</td><td>48</td><td>192</td><td>pending</td><td>pending</td><td>pending</td><td class='note'>many sampler steps</td></tr>
+<tr><td>1</td><td>48</td><td>384</td><td>pending</td><td>pending</td><td>pending</td><td class='note'>many sampler steps</td></tr>
+<tr><td>3</td><td>48</td><td>768</td><td>pending</td><td>pending</td><td>pending</td><td class='note'>many sampler steps</td></tr>
+</table>
+</div>
+<p>One sampler step costs 4 + 4 × K block evaluations. The baseline with 8 blocks costs 128 at 16 steps and has FID 136.8.</p>
+
+<h2>More corrections in a range of noise levels only</h2>
+<p>16 Euler steps. The sampler applies 3 corrections at the steps whose noise level is inside the range, and K outside at the other steps.
+For comparison at 16 steps: K = 0 everywhere 160.1, K = 1 everywhere 152.3, K = 3 everywhere pending.</p>
+<div class="wrap">
+<table>
+  <tr><th>Noise levels</th><th>K inside</th><th>K outside</th><th>Block evaluations</th><th>FID</th><th>KID × 1000</th><th>fd_ae_z</th><th class="note">Note</th></tr>
+<tr><td>0.7 to 1</td><td>3</td><td>1</td><td>168</td><td>150.6</td><td>138.9</td><td>440</td><td class='note'>high noise: the first sampler steps</td></tr>
+<tr><td>0.3 to 0.7</td><td>3</td><td>1</td><td></td><td>pending</td><td>pending</td><td>pending</td><td class='note'>medium noise</td></tr>
+<tr><td>0 to 0.3</td><td>3</td><td>1</td><td></td><td>pending</td><td>pending</td><td>pending</td><td class='note'>low noise: the last sampler steps</td></tr>
+<tr><td>0 to 0.2</td><td>3</td><td>1</td><td>152</td><td>150.0</td><td>135.9</td><td>374</td><td class='note'>the range of the paper's JiT setting (t 0.8 to 1, t = 1 clean)</td></tr>
+<tr><td>0.7 to 1</td><td>3</td><td>0</td><td></td><td>pending</td><td>pending</td><td>pending</td><td class='note'>high noise: the first sampler steps</td></tr>
+<tr><td>0.3 to 0.7</td><td>3</td><td>0</td><td></td><td>pending</td><td>pending</td><td>pending</td><td class='note'>medium noise</td></tr>
+<tr><td>0 to 0.3</td><td>3</td><td>0</td><td></td><td>pending</td><td>pending</td><td>pending</td><td class='note'>low noise: the last sampler steps</td></tr>
+<tr><td>0 to 0.2</td><td>3</td><td>0</td><td></td><td>pending</td><td>pending</td><td>pending</td><td class='note'>the range of the paper's JiT setting (t 0.8 to 1, t = 1 clean)</td></tr>
+</table>
+</div>
+</main>
+</body>
+</html>

@@ -1,0 +1,27 @@
+export { EPSILON, binomial, clamp, equals, fade, lagrange, lerp, remap, remapClamp, repeat, round } from './core/scalar.js';
+export { DEGREES_TO_RADIANS, RADIANS_TO_DEGREES, degreesToRadians, deltaAngle, radiansToDegrees, wrapAngle } from './core/angle.js';
+import * as vec2 from './core/vec2.js';
+export { vec2 };
+import * as vec3 from './core/vec3.js';
+export { vec3 };
+import * as vec4 from './core/vec4.js';
+export { vec4 };
+import * as euler from './core/euler.js';
+export { euler };
+import * as quat from './core/quat.js';
+export { quat };
+import * as quat2 from './core/quat2.js';
+export { quat2 };
+import * as mat2 from './core/mat2.js';
+export { mat2 };
+import * as mat2d from './core/mat2d.js';
+export { mat2d };
+import * as mat3 from './core/mat3.js';
+export { mat3 };
+import * as mat4 from './core/mat4.js';
+export { mat4 };
+import * as spherical from './core/spherical.js';
+export { spherical };
+import * as polar from './core/polar.js';
+export { polar };
+//# sourceMappingURL=index.js.map

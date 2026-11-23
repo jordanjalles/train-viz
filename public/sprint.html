@@ -1,0 +1,535 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Switch to sparse middle</title>
+<style>
+  body { margin: 0; padding: 20px 16px 48px; background: #090c12; color: #e8ecf3; font: 16px/1.55 system-ui, sans-serif; }
+  main { max-width: 760px; margin: 0 auto; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  h2 { font-size: 16px; margin: 34px 0 6px; }
+  p, td, th { color: #a7b0c0; }
+  .lead { margin: 0 0 22px; }
+  code { color: #e8ecf3; font: 13px ui-monospace, Menlo, Consolas, monospace; background: rgba(255,255,255,0.06); padding: 1px 5px; border-radius: 5px; }
+  b { color: #e8ecf3; }
+  ol.steps { list-style: none; padding: 0; margin: 0; counter-reset: step; }
+  ol.steps > li { counter-increment: step; position: relative; padding: 14px 16px 14px 58px; margin: 0 0 10px; background: #121822; border: 1px solid rgba(255,255,255,0.09); border-radius: 14px; }
+  ol.steps > li::before { content: counter(step); position: absolute; left: 16px; top: 14px; width: 28px; height: 28px; border-radius: 50%; background: hsl(192 86% 64%); color: #06222a; font-weight: 700; display: grid; place-items: center; }
+  .where { display: block; font-size: 12.5px; color: #6b7482; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 2px; }
+  .do { color: #e8ecf3; }
+  button { font: inherit; font-size: 14px; font-weight: 600; padding: 8px 18px; border-radius: 999px; border: 0; background: hsl(192 86% 64%); color: #06222a; cursor: pointer; min-height: 40px; }
+  .copy { margin-top: 10px; }
+  .msg { margin-left: 10px; color: hsl(150 60% 55%); font-size: 14px; }
+  details { margin-top: 8px; }
+  summary { cursor: pointer; color: #6b7482; font-size: 13px; }
+  pre { margin: 8px 0 0; padding: 12px; background: #0b1018; border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; overflow-x: auto; font: 12.5px/1.45 ui-monospace, Menlo, Consolas, monospace; color: #e8ecf3; }
+  .swap { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; font: 13px ui-monospace, Menlo, Consolas, monospace; }
+  .swap span { padding: 6px 10px; border-radius: 8px; background: #0b1018; border: 1px solid rgba(255,255,255,0.1); }
+  .swap .old { color: #e66767; text-decoration: line-through; }
+  .swap .new { color: hsl(150 60% 55%); }
+  .result { margin-top: 10px; padding: 10px 12px; background: #0b1018; border-left: 3px solid hsl(150 60% 55%); border-radius: 6px; overflow-x: auto; white-space: pre; font: 12.5px/1.5 ui-monospace, Menlo, Consolas, monospace; color: #e8ecf3; }
+  .result-label { display: block; margin-top: 10px; font-size: 13px; color: #6b7482; }
+  table { border-collapse: collapse; width: 100%; margin: 4px 0; font-size: 15px; }
+  th, td { text-align: left; padding: 8px 12px 8px 0; border-bottom: 1px solid rgba(255,255,255,0.09); vertical-align: top; }
+  th { color: #e8ecf3; font-weight: 600; }
+  a { color: hsl(192 86% 64%); }
+  .small { font-size: 14px; }
+</style>
+</head>
+<body>
+<main>
+<h1>Switch the flow model to a sparse middle</h1>
+<p class="lead">Notebook: <code>ImageNet1-Latent-Flow-Matching-XM.ipynb</code>. Three small edits and one check.
+The model is your <code>SparseMiddleTransformer</code> from the AE notebook, ported to the flow model.</p>
+
+<ol class="steps">
+  <li><span class="where">First cell (hyperparameters)</span>
+    <span class="do">Paste this below the line that starts with <code>XM_N = 1</code>.</span>
+    <div class="copy">
+<button>Copy the 4 settings</button><span class="msg" role="status"></span>
+<details><summary>Show the code (5 lines)</summary><pre>#sparse middle (SPRINT)
+use_sparse_middle = True    # False = every block sees all tokens
+sparse_keep_ratio = 0.25    # share of tokens the middle sees
+sparse_shallow_blocks = 2   # first blocks: all tokens
+sparse_final_blocks = 2     # last blocks: all tokens
+</pre></details>
+</div>
+  </li>
+  <li><span class="where">New cell, directly below <code>#define latent flow model</code></span>
+    <span class="do">Paste this into the new cell. It only defines things.</span>
+    <div class="copy">
+<button>Copy the model cell</button><span class="msg" role="status"></span>
+<details><summary>Show the code (195 lines)</summary><pre>#define sparse-middle flow model (definitions only)
+
+class SparseMiddleFlowModel(FlowModel):
+    &quot;&quot;&quot;
+    Shallow blocks → sparse middle blocks → fusion → final blocks.
+
+    Same parts as FlowModel, plus the fusion layer.
+    &quot;&quot;&quot;
+
+    def __init__(
+        self,
+        emb_dim,
+        flow_emb_dim,
+        num_blocks,
+        n_heads,
+        head_size,
+        keep_ratio=None,
+        shallow_blocks=None,
+        final_blocks=None,
+    ):
+        # None = take the value from the first cell.
+        if keep_ratio is None:
+            keep_ratio = sparse_keep_ratio
+        if shallow_blocks is None:
+            shallow_blocks = sparse_shallow_blocks
+        if final_blocks is None:
+            final_blocks = sparse_final_blocks
+
+        super().__init__(
+            emb_dim,
+            flow_emb_dim,
+            num_blocks,
+            n_heads,
+            head_size,
+        )
+
+        if not 0 &lt; keep_ratio &lt;= 1:
+            raise ValueError(&quot;keep_ratio must be in (0, 1].&quot;)
+        if shallow_blocks &lt; 1 or final_blocks &lt; 1:
+            raise ValueError(
+                &quot;Need at least one shallow and final block.&quot;
+            )
+        if shallow_blocks + final_blocks &gt;= num_blocks:
+            raise ValueError(&quot;Need at least one middle block.&quot;)
+
+        self.keep_ratio = keep_ratio
+        self.shallow_blocks = shallow_blocks
+        self.middle_end = num_blocks - final_blocks
+
+        # False = full-token training. Set in the first cell,
+        # or with set_sparse_middle(...) during a run.
+        self.sparse_middle = bool(use_sparse_middle)
+
+        # Fuse shallow and deep features: 2C → C.
+        self.fusion = nn.Linear(2 * flow_emb_dim, flow_emb_dim)
+
+        # Start with equal contributions from both paths.
+        with torch.no_grad():
+            eye = torch.eye(flow_emb_dim)
+            self.fusion.weight.copy_(
+                torch.cat((0.5 * eye, 0.5 * eye), dim=1)
+            )
+            self.fusion.bias.zero_()
+
+    @staticmethod
+    def gather_tokens(x, indices):
+        return x.gather(
+            dim=1,
+            index=indices.unsqueeze(-1).expand(
+                -1, -1, x.shape[-1],
+            ),
+        )
+
+    @staticmethod
+    def sample_indices(batch, count, keep, device):
+        # Sort selected indices to preserve original token order.
+        return (
+            torch.rand(batch, count, device=device)
+            .topk(keep, dim=1, largest=False)
+            .indices.sort(dim=1)
+            .values
+        )
+
+    def forward(self, z, time):
+
+        z = self.in_proj(z) #emb_dim -&gt; flow_emb_dim
+
+        z = z + self.slot_embed
+
+        time_emb = self.timestep_embedder(time)
+
+        B, T, C = z.shape
+
+        # Shallow path sees all tokens.
+        for i in range(self.shallow_blocks):
+            z = self.blocks[i](z, time_emb)
+
+        shallow = z
+
+        # Sparse only in a training step. A sampler that forgets
+        # .eval() still runs without gradients, so it stays dense.
+        use_sparse = (
+            self.training
+            and self.sparse_middle
+            and self.keep_ratio &lt; 1
+            and torch.is_grad_enabled()
+        )
+
+        if use_sparse:
+            keep = min(T, max(1, int(T * self.keep_ratio)))
+
+            token_ids = self.sample_indices(
+                B, T, keep, z.device,
+            )
+
+            deep = self.gather_tokens(shallow, token_ids)
+        else:
+            deep = shallow
+
+        for i in range(self.shallow_blocks, self.middle_end):
+            deep = self.blocks[i](deep, time_emb)
+
+        if use_sparse:
+            # Restore deep features to their original positions.
+            deep = torch.zeros_like(shallow).scatter(
+                dim=1,
+                index=token_ids.unsqueeze(-1).expand(-1, -1, C),
+                src=deep.to(shallow.dtype),
+            )
+
+        z = self.fusion(torch.cat((shallow, deep), dim=-1))
+
+        for i in range(self.middle_end, len(self.blocks)):
+            z = self.blocks[i](z, time_emb)
+
+        ss = self.scale_shift(time_emb)[:, None, :] # (B, 1, C*2)
+
+        (
+            scale,
+            shift,
+        ) = ss.chunk(2, dim=-1) # each is (B, 1, C)
+
+        out = self.out_proj(self.out_norm(z) * (1 + scale) + shift )
+
+        return out
+
+
+def set_sparse_middle(on, quiet=False):
+    # Turn the sparse middle on or off. Works at any time.
+    model = getattr(flow_model, &quot;_orig_mod&quot;, flow_model)
+    changed = model.sparse_middle != bool(on)
+    model.sparse_middle = bool(on)
+
+    if quiet and not changed:
+        return
+
+    T = model.n_latent_tokens
+    n_middle = model.middle_end - model.shallow_blocks
+    if model.sparse_middle and model.keep_ratio &lt; 1:
+        keep = min(T, max(1, int(T * model.keep_ratio)))
+        print(
+            f&quot;sparse middle ON: {n_middle} middle blocks &quot;
+            f&quot;train on {keep}/{T} tokens&quot;
+        )
+    else:
+        print(f&quot;sparse middle OFF: all blocks see {T} tokens&quot;)
+
+
+def check_sparse_middle():
+    # Smoke test: how many tokens does each block see?
+    model = getattr(flow_model, &quot;_orig_mod&quot;, flow_model)
+    seen = []
+    hooks = [
+        block.register_forward_hook(
+            lambda m, args, out: seen.append(args[0].shape[1])
+        )
+        for block in model.blocks
+    ]
+    was_training = model.training
+    z = torch.randn(4, n_latent_tokens, emb_dim, device=device)
+    t = torch.rand(4, device=device)
+    kind = &quot;cuda&quot; if str(device).startswith(&quot;cuda&quot;) else &quot;cpu&quot;
+    try:
+        model.train()
+        with torch.autocast(kind, dtype=torch.bfloat16):
+            model(z, t)
+        print(&quot;training step, tokens per block:&quot;, seen)
+        seen.clear()
+        with torch.no_grad():
+            model(z, t)
+        print(&quot;sampling / eval, tokens per block:&quot;, seen)
+    finally:
+        model.train(was_training)
+        for hook in hooks:
+            hook.remove()
+</pre></details>
+</div>
+  </li>
+  <li><span class="where">Cell <code># -------------------- Init Models + Optimizer</code></span>
+    <span class="do">Change one word in the line that builds the model.</span>
+    <div class="swap"><span class="old">flow_model = FlowModel(</span><span>&rarr;</span><span class="new">flow_model = SparseMiddleFlowModel(</span></div>
+  </li>
+  <li><span class="where">Any cell, after the init cell has run</span>
+    <span class="do">Restart the kernel and run the cells from the top through the init cell. Then run <code>check_sparse_middle()</code>.</span>
+    <span class="result-label">You should see:</span>
+    <div class="result">training step, tokens per block: [48, 48, 12, 12, 12, 12, 12, 12, 48, 48]
+sampling / eval, tokens per block: [48, 48, 48, 48, 48, 48, 48, 48, 48, 48]</div>
+  </li>
+</ol>
+<p class="small">That is all. Run the rest of the notebook as usual. Sampling and the split losses always use all 48 tokens.</p>
+
+<h2>Turn it on and off</h2>
+<table>
+  <tr><th>You want</th><th>Do this</th></tr>
+  <tr><td>Dense for a whole run</td><td>Set <code>use_sparse_middle = False</code> in the first cell.</td></tr>
+  <tr><td>To switch during a run</td><td>Run <code>set_sparse_middle(False)</code> or <code>set_sparse_middle(True)</code> in any cell.</td></tr>
+</table>
+<p class="small">A switch needs no other cell. The next training step compiles again on its own, so expect one slow step.</p>
+
+<h2>Optional: switch to dense on its own at an epoch</h2>
+<ol class="steps">
+  <li><span class="where">First cell (hyperparameters)</span>
+    <span class="do">Paste this below the lines from step 1. Set the epoch you want.</span>
+    <div class="copy">
+<button>Copy the setting</button><span class="msg" role="status"></span>
+<details><summary>Show the code (1 lines)</summary><pre>sparse_until_epoch = 180    # dense from this epoch on
+</pre></details>
+</div>
+  </li>
+  <li><span class="where">Cell <code># MAIN TRAINING LOOP</code></span>
+    <span class="do">Paste this as the first lines inside the <code>for epoch in range(...):</code> loop.</span>
+    <div class="copy">
+<button>Copy the loop lines</button><span class="msg" role="status"></span>
+<details><summary>Show the code (6 lines)</summary><pre>    #sparse middle follows sparse_until_epoch
+    if sparse_until_epoch is not None:
+        set_sparse_middle(
+            epoch &lt; sparse_until_epoch,
+            quiet=True,
+        )
+</pre></details>
+</div>
+  </li>
+</ol>
+
+<h2>Test path-drop guidance</h2>
+<p class="small">From the SPRINT paper: the same weights with the middle blocks skipped act as a weak model. Sampling then pushes
+away from the weak model: <code>velocity = weak + guidance * (full - weak)</code>. The weak pass runs only the shallow and
+final blocks, so it is cheap.</p>
+<ol class="steps">
+  <li><span class="where">New cell, directly below the cell that starts with <code># # Sweep single-block path-drop autoguidance</code></span>
+    <span class="do">Paste this into the new cell. It only defines things.</span>
+    <div class="copy">
+<button>Copy the guidance helpers</button><span class="msg" role="status"></span>
+<details><summary>Show the code (165 lines)</summary><pre># path-drop guidance (SPRINT): definitions only
+#
+# weak model = the same weights with the middle blocks skipped:
+#   shallow blocks -&gt; fusion (deep path = zeros) -&gt; final blocks
+# guided velocity = weak + scale * (full - weak)
+#   scale 0 = weak model only, scale 1 = no guidance.
+
+@torch.inference_mode()
+def flow_velocity_weak(z, t):
+    # The sparse-middle flow model with its middle blocks skipped.
+    model = getattr(flow_model, &quot;_orig_mod&quot;, flow_model)
+    assert hasattr(model, &quot;fusion&quot;), (
+        &quot;flow_model is not a SparseMiddleFlowModel&quot;
+    )
+
+    x = model.in_proj(z) + model.slot_embed
+    time_emb = model.timestep_embedder(t)
+
+    for i in range(model.shallow_blocks):
+        x = model.blocks[i](x, time_emb)
+
+    # No token went through the middle: the deep path is zeros,
+    # as it is for every skipped token in a training step.
+    x = model.fusion(
+        torch.cat((x, torch.zeros_like(x)), dim=-1)
+    )
+
+    for i in range(model.middle_end, len(model.blocks)):
+        x = model.blocks[i](x, time_emb)
+
+    scale, shift = model.scale_shift(time_emb)[:, None, :].chunk(
+        2, dim=-1,
+    )
+    return model.out_proj(model.out_norm(x) * (1 + scale) + shift)
+
+
+@torch.inference_mode()
+def denoise_seed_pdg(
+    seed, guidance=2.0, steps=20, sampler=&quot;euler&quot;,
+    scheduler=&quot;linear&quot;, scheduler_kwargs=None,
+):
+    # denoise_seed with path-drop guidance. Same seed -&gt; same
+    # starting noise as denoise_seed. Samplers: euler, heun,
+    # midpoint.
+    if sampler not in (&quot;euler&quot;, &quot;heun&quot;, &quot;midpoint&quot;):
+        raise ValueError(f&quot;Unknown sampler: {sampler}&quot;)
+
+    def guided(z, t):
+        weak = flow_velocity_weak(z, t)
+        if guidance == 0:
+            return weak
+        full = flow_model(z, t)
+        return weak + guidance * (full - weak)
+
+    ts = make_timesteps(
+        steps, scheduler, device=device,
+        **(scheduler_kwargs or {}),
+    )
+    rng = torch.Generator(device=device).manual_seed(seed)
+
+    was_training = flow_model.training
+    flow_model.eval()
+    try:
+        z = torch.randn(
+            (1, n_latent_tokens, emb_dim),
+            generator=rng, device=device,
+        ) * flow_noise_scale
+        for t, t_next in zip(ts[:-1], ts[1:]):
+            # own stepping: does not depend on _ode_step
+            n = z.shape[0]
+            dt = t_next - t
+            v1 = guided(z, t.expand(n))
+            if sampler == &quot;euler&quot;:
+                z = z + dt * v1
+            elif sampler == &quot;midpoint&quot;:
+                t_mid = (t + t_next) / 2
+                z = z + dt * guided(
+                    z + 0.5 * dt * v1, t_mid.expand(n),
+                )
+            else:  # heun
+                v2 = guided(z + dt * v1, t_next.expand(n))
+                z = z + 0.5 * dt * (v1 + v2)
+        return decoder(z)
+    finally:
+        flow_model.train(was_training)
+
+
+@torch.inference_mode()
+def path_drop_gap(n=16, times=(0.2, 0.5, 0.8)):
+    # How far is the weak model from the full model?
+    # Prints |full - weak| / |full| on noised z at a few times.
+    # 0 means guidance cannot change anything.
+    was_training = flow_model.training
+    flow_model.eval()
+    gaps = []
+    try:
+        rng = torch.Generator(device=device).manual_seed(0)
+        z = torch.randn(
+            (n, n_latent_tokens, emb_dim),
+            generator=rng, device=device,
+        ) * flow_noise_scale
+        for time in times:
+            t = torch.full((n,), float(time), device=device)
+            full = flow_model(z, t).float()
+            weak = flow_velocity_weak(z, t).float()
+            size = full.norm().item()
+            gap = (full - weak).norm().item()
+            gaps.append(gap / size if size &gt; 0 else 0.0)
+            print(
+                f&quot;t={time:.1f} | full velocity size {size:9.3f}&quot;
+                f&quot; | weak differs by {100 * gaps[-1]:6.1f}%&quot;
+            )
+            if size == 0:
+                print(
+                    &quot;  full velocity is exactly zero: the model &quot;
+                    &quot;is untrained (out_proj starts at zero)&quot;
+                )
+    finally:
+        flow_model.train(was_training)
+    return gaps
+
+
+def plot_path_drop_guidance(
+    seeds=range(4),
+    guidances=(0.0, 1.0, 1.5, 2.0, 3.0),
+    steps=20,
+    sampler=&quot;euler&quot;,
+):
+    # One row per seed, one column per guidance scale.
+    gaps = path_drop_gap()
+    if max(gaps) &lt; 1e-4:
+        print(
+            &quot;Weak and full model are the same here, so every &quot;
+            &quot;column will look alike.&quot;
+        )
+    seeds = [int(seed) for seed in seeds]
+    fig, axes = plt.subplots(
+        len(seeds), len(guidances),
+        figsize=(3 * len(guidances), 3 * len(seeds)),
+        squeeze=False,
+    )
+
+    for row, seed in zip(axes, seeds):
+        for ax, guidance in zip(row, guidances):
+            image = denoise_seed_pdg(
+                seed, guidance, steps, sampler,
+            )[0]
+            ax.imshow(
+                image.detach().float().cpu()
+                .permute(1, 2, 0).clamp(0, 1)
+            )
+            ax.axis(&quot;off&quot;)
+            if guidance == 0:
+                name = &quot;weak model only&quot;
+            elif guidance == 1:
+                name = &quot;no guidance&quot;
+            else:
+                name = f&quot;guidance {guidance:g}&quot;
+            ax.set_title(f&quot;{name} · seed {seed}&quot;)
+
+    fig.suptitle(
+        f&quot;Path-drop guidance · {steps} {sampler} steps&quot;
+    )
+    plt.tight_layout()
+    plt.show()
+</pre></details>
+</div>
+  </li>
+  <li><span class="where">New cell, directly below the cell from the step above</span>
+    <span class="do">Paste this and run it after training. Edit the seeds and guidance values here.</span>
+    <div class="copy">
+<button>Copy the call cell</button><span class="msg" role="status"></span>
+<details><summary>Show the code (6 lines)</summary><pre>plot_path_drop_guidance(
+    seeds=range(4),
+    guidances=(0.0, 1.0, 1.5, 2.0, 3.0),
+    steps=20,
+    sampler=&quot;euler&quot;,
+)
+</pre></details>
+</div>
+    <span class="result-label">You should see:</span>
+    <div class="result">a grid of images: one row per seed, one column per guidance value
+column 1 "weak model only", column 2 "no guidance", then guidance 1.5, 2 and 3</div>
+  </li>
+</ol>
+<p class="small"><b>How to read it:</b> column 2 is your normal sampler, and it equals <code>denoise_seed</code> for the same seed.
+Guidance helps if the columns to its right look sharper or more coherent. Column 1 shows what the weak model makes by
+itself. It should be a blurrier or less coherent version of column 2.<br>
+<b>One difference from the paper:</b> the paper also trains with the middle path dropped for 10% of samples, so the weak
+model is trained for this. Your model was not. It still sees a zero deep path at three of four tokens in every sparse step, so the
+weak pass is close to what it trained on. If guidance looks promising, I can add that 10% as one setting.<br>
+<b>The paper combines this with class conditioning.</b> Your flow model has no class input, so this is the path-drop part alone.</p>
+
+<h2>Good to know</h2>
+<p class="small"><b>Loss lines inside an epoch</b> are from sparse steps and read higher. <b>The epoch-end <code>train-loss</code> and
+<code>test-loss</code></b> are dense, so they stay comparable with earlier runs.<br>
+<b>Old flow checkpoints</b> load with <code>strict=False</code>, but their outputs change: the fusion layer starts at half shallow,
+half deep, as in your AE class.<br>
+<b>Tested</b> on the CPU with your notebook's own cells and a tiny fake dataset. It has not run on a GPU.</p>
+
+<p class="small"><a href="/flow_resume.html">Save, load and resume cells</a> · <a href="/">Back to train-viz</a></p>
+</main>
+<script>
+  for (const box of document.querySelectorAll('.copy')) {
+    const pre = box.querySelector('pre');
+    const msg = box.querySelector('.msg');
+    box.querySelector('button').addEventListener('click', async () => {
+      const code = pre.textContent;
+      try { await navigator.clipboard.writeText(code); msg.textContent = 'Copied ' + (code.split('\n').length - 1) + ' lines'; }
+      catch (e) {
+        box.querySelector('details').open = true;
+        const r = document.createRange(); r.selectNodeContents(pre);
+        const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+        msg.textContent = 'Selected: press Ctrl+C (or Cmd+C) to copy';
+      }
+    });
+  }
+</script>
+</body>
+</html>

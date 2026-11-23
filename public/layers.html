@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>What re-learns after a scale-up</title>
+<style>
+  :root {
+    --bg: #090c12; --panel: #121822; --line: rgba(255,255,255,0.09); --line-2: rgba(255,255,255,0.16);
+    --fg: #e8ecf3; --fg-2: #a7b0c0; --fg-3: #6b7482;
+    --cool: #3987e5; --warm: #e66767; --mid: #383835;   /* diverging pair + neutral midpoint */
+    --mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 24px 16px 60px; background: var(--bg); color: var(--fg); font: 15px/1.5 "Inter", system-ui, sans-serif; }
+  main { max-width: 1180px; margin: 0 auto; }
+  h1 { font-size: 24px; margin: 0 0 4px; }
+  h2 { font-size: 17px; margin: 34px 0 4px; }
+  p { color: var(--fg-2); margin: 4px 0 12px; max-width: 80ch; }
+  a { color: #7fb2f0; }
+  .sub { color: var(--fg-3); font-size: 13px; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; margin: 16px 0 6px; }
+  .tile { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
+  .tile b { display: block; font: 700 26px/1.1 var(--mono); letter-spacing: -0.02em; }
+  .tile span { color: var(--fg-2); font-size: 12.5px; }
+  .tile i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; }
+  .controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 10px 0 8px; }
+  .seg { display: inline-flex; border: 1px solid var(--line-2); border-radius: 999px; overflow: hidden; }
+  .seg button { font: inherit; font-size: 13px; color: var(--fg-2); background: none; border: 0; padding: 7px 14px; cursor: pointer; min-height: 36px; }
+  .seg button[aria-pressed="true"] { background: rgba(255,255,255,0.1); color: var(--fg); }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; overflow-x: auto; }
+  table.heat { border-collapse: separate; border-spacing: 2px; font-size: 12.5px; width: 100%; min-width: 720px; }
+  table.heat th { font-weight: 500; color: var(--fg-2); text-align: left; padding: 2px 8px 2px 0; white-space: nowrap; }
+  table.heat thead th { text-align: center; padding: 2px 4px 6px; font-size: 12px; line-height: 1.25; }
+  table.heat thead th small { display: block; color: var(--fg-3); }
+  table.heat td { text-align: center; font: 500 12px/1 var(--mono); padding: 7px 4px; border-radius: 4px; min-width: 62px; color: var(--fg); cursor: default; }
+  table.heat tr.group th { color: var(--fg); font-weight: 700; padding-top: 12px; font-size: 13px; }
+  table.heat tr.sep td { height: 6px; padding: 0; }
+  .legend { display: flex; align-items: center; gap: 10px; color: var(--fg-2); font-size: 12.5px; margin-top: 10px; flex-wrap: wrap; }
+  .bar { width: 220px; height: 12px; border-radius: 6px; }
+  .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 12px; }
+  .mini h3 { font-size: 13.5px; margin: 0 0 2px; }
+  .mini svg { width: 100%; height: 150px; display: block; overflow: visible; }
+  .mini .cap { font-size: 12px; color: var(--fg-3); }
+  .key { display: inline-flex; align-items: center; gap: 6px; margin-right: 14px; font-size: 12.5px; color: var(--fg-2); }
+  .key i { width: 14px; height: 3px; border-radius: 2px; display: inline-block; }
+  #tip { position: fixed; pointer-events: none; background: #0c1119; border: 1px solid var(--line-2); border-radius: 10px; padding: 8px 10px; font-size: 12.5px; color: var(--fg); max-width: 300px; z-index: 5; box-shadow: 0 10px 30px rgba(0,0,0,.5); }
+  #tip[hidden] { display: none; }
+  #tip b { font-family: var(--mono); }
+  details { margin-top: 10px; }
+  summary { cursor: pointer; color: var(--fg-2); }
+  table.plain { border-collapse: collapse; font-size: 12px; margin-top: 8px; }
+  table.plain th, table.plain td { border: 1px solid var(--line); padding: 3px 8px; text-align: right; font-family: var(--mono); }
+  table.plain th:first-child, table.plain td:first-child { text-align: left; font-family: inherit; }
+  ul.find { color: var(--fg-2); padding-left: 20px; max-width: 85ch; }
+  ul.find b { color: var(--fg); }
+</style>
+</head>
+<body>
+<main>
+<h1>What re-learns after a scale-up</h1>
+<p class="sub" id="stamp"></p>
+<p>Each column is one scale-up: a model trained at a low resolution continues at twice the resolution with the same weights.
+The number in a cell answers one question: <b>how much more did this part of the network change in the 5,000 steps after
+the scale-up than it would have changed in 5,000 more steps at the old resolution?</b> A value of 1 means "no more than
+usual". A value of 2 means "twice as much".</p>
+
+<div class="tiles" id="tiles"></div>
+<ul class="find" id="findings"></ul>
+
+<h2>Map of the network</h2>
+<p>Rows follow the data through the model, encoder first. Hover a cell for the exact numbers.</p>
+<div class="controls">
+  <div class="seg" role="group" aria-label="value shown">
+    <button id="m-ratio" aria-pressed="true">× more than usual</button>
+    <button id="m-rel" aria-pressed="false">% weight change</button>
+  </div>
+  <span class="sub" id="modeNote"></span>
+</div>
+<div class="panel"><table class="heat" id="heat"></table>
+  <div class="legend" id="legend"></div></div>
+
+<h2>By depth</h2>
+<p>The same measure for each of the nine blocks, attention and MLP apart. Block 0 is nearest the input of each transformer.</p>
+<div class="panel"><table class="heat" id="depth"></table></div>
+
+<h2>How fast it happens</h2>
+<p>Total weight change of the encoder and the decoder at 1,000 to 5,000 steps after each scale-up. The dashed marks at
+5,000 show the change under continued training at the old resolution.</p>
+<div class="legend" style="margin:0 0 8px">
+  <span class="key"><i style="background:var(--cool)"></i>encoder</span>
+  <span class="key"><i style="background:#e3a13a"></i>decoder</span>
+  <span class="key"><i style="background:var(--fg-3)"></i>dashed: same part, no scale-up</span>
+</div>
+<div class="grid2" id="minis"></div>
+
+<h2>How this was measured</h2>
+<p>For a scale-up from a parent run at step S, the weights at S are compared with the weights 5,000 steps later. Change is
+the size of the difference divided by the size of the weights at S, pooled over all tensors of a part. The scale-up branch
+trains at the new resolution. The control is the parent run itself, 5,000 steps later at the old resolution. Both start from
+the same weights and optimizer state. Patch size is 16 at every resolution, so 32 px has 4 patches, 64 px has 16 and 128 px has 64.</p>
+<p>Limits: one run per condition, so small differences between columns are not reliable. A large change in weights does not
+prove that a part needed to change; a freezing test would show that. <span id="limits"></span></p>
+<details><summary>All numbers as a table</summary><div id="plain" style="overflow-x:auto"></div></details>
+<p style="margin-top:26px"><a href="/">Back to train-viz</a></p>
+</main>
+<div id="tip" hidden></div>
+<script>
+const COOL = [57, 135, 229], WARM = [230, 103, 103], MID = [56, 56, 53], SEQ = [57, 135, 229], PANEL = [18, 24, 34];
+const mix = (a, b, t) => `rgb(${a.map((v, i) => Math.round(v + (b[i] - v) * t)).join(',')})`;
+const CAP = 4;                         // ratio colour saturates at 4x (and at 1/4x)
+const ratioColor = (r) => { if (r == null || !isFinite(r)) return 'transparent'; const t = Math.max(-1, Math.min(1, Math.log2(r) / Math.log2(CAP))); return t >= 0 ? mix(MID, WARM, t) : mix(MID, COOL, -t); };
+const relColor = (v, max) => v == null ? 'transparent' : mix(PANEL, SEQ, Math.min(1, v / max));
+const f2 = (v) => v == null || !isFinite(v) ? '–' : v >= 10 ? v.toFixed(0) : v.toFixed(v >= 3 ? 1 : 2);
+const pct = (v) => v == null ? '–' : `${(100 * v).toFixed(v < 0.1 ? 1 : 0)}%`;
+const NICE = {
+  'patch embed linear': 'Patch embed (pixels to tokens)', 'patch embed norm gain': 'Patch embed norm gain',
+  'latent_tokens': 'Latent tokens (learned)', 'norm_in gain': 'Input norm gain', 'norm_out gain': 'Output norm gain',
+  'z projection emb_out_proj': 'Projection to z', 'z projection emb_in_proj': 'Projection from z',
+  'latent_slots': 'Latent slots (learned)', 'learned_patch_token': 'Patch query token (learned)',
+  'patch un-embed linear': 'Patch un-embed (tokens to pixels)', 'patch un-embed norm gain': 'Patch un-embed norm gain',
+  'attn Q': 'Attention: queries', 'attn K': 'Attention: keys', 'attn V': 'Attention: values', 'attn out_proj': 'Attention: output',
+  'attn q_norm gain': 'Query norm gain', 'attn k_norm gain': 'Key norm gain', 'attn post_norm gain': 'Attention branch gain',
+  'mlp gate_proj': 'MLP: gate', 'mlp up_proj': 'MLP: up', 'mlp down_proj': 'MLP: down', 'mlp post_norm gain': 'MLP branch gain',
+  'block norm (attn pre-norm) gain': 'Pre-attention norm gain', 'block norm (mlp pre-norm) gain': 'Pre-MLP norm gain',
+};
+const ORDER = {
+  encoder: ['patch embed linear', 'patch embed norm gain', 'latent_tokens', 'norm_in gain', '*types', 'norm_out gain', 'z projection emb_out_proj'],
+  decoder: ['z projection emb_in_proj', 'latent_slots', 'learned_patch_token', 'norm_in gain', '*types', 'norm_out gain', 'patch un-embed linear', 'patch un-embed norm gain'],
+};
+const tip = document.getElementById('tip');
+function showTip(e, html) { tip.innerHTML = html; tip.hidden = false; const w = tip.offsetWidth, h = tip.offsetHeight; tip.style.left = Math.min(window.innerWidth - w - 8, e.clientX + 14) + 'px'; tip.style.top = Math.max(8, Math.min(window.innerHeight - h - 8, e.clientY + 14)) + 'px'; }
+const hideTip = () => { tip.hidden = true; };
+const el = (tag, attrs = {}, ...kids) => { const n = document.createElement(tag); for (const [k, v] of Object.entries(attrs)) { if (k === 'style') n.style.cssText = v; else if (k.startsWith('on')) n.addEventListener(k.slice(2), v); else n.setAttribute(k, v); } n.append(...kids); return n; };
+
+let mode = 'ratio', DATA = null;
+function rowsFor(s, part) {
+  const p = s.parts[part], byLabel = Object.fromEntries(p.groups.map((r) => [r.label, r]));
+  const out = [];
+  for (const key of ORDER[part]) {
+    if (key === '*types') for (const r of p.types) out.push({ key: r.label.replace('all blocks: ', ''), row: r, pooled: true });
+    else if (byLabel[key]) out.push({ key, row: byLabel[key] });
+  }
+  return out;
+}
+function colHead(s) { return el('th', {}, `${s.from_res} → ${s.to_res} px`, el('small', {}, `at ${s.step / 1000}k steps${s.main_steps !== 5000 ? ` · +${s.main_steps / 1000}k` : ''}`)); }
+function cell(r, s, label, relMax) {
+  const v = mode === 'ratio' ? r.ratio : r.rel;
+  const td = el('td', { style: `background:${mode === 'ratio' ? ratioColor(v) : relColor(v, relMax)}` }, mode === 'ratio' ? `${f2(v)}×` : pct(v));
+  const html = `<div style="color:var(--fg-2)">${label}<br>${s.label}</div>after the scale-up: <b>${pct(r.rel)}</b> change<br>without it: <b>${pct(r.control_rel)}</b><br>ratio: <b>${f2(r.ratio)}×</b><br><span style="color:var(--fg-3)">${r.n.toLocaleString()} weights</span>`;
+  td.addEventListener('pointermove', (e) => showTip(e, html)); td.addEventListener('pointerleave', hideTip);
+  return td;
+}
+function renderHeat() {
+  const S = DATA.scaleups, T = document.getElementById('heat');
+  const relMax = Math.max(...S.flatMap((s) => ['encoder', 'decoder'].flatMap((p) => rowsFor(s, p).map((x) => x.row.rel || 0)))) * 0.85;
+  T.replaceChildren(el('thead', {}, el('tr', {}, el('th', {}, ''), ...S.map(colHead))));
+  const body = el('tbody');
+  for (const part of ['encoder', 'decoder']) {
+    body.append(el('tr', { class: 'group' }, el('th', { colspan: S.length + 1 }, part === 'encoder' ? 'Encoder (image to z). It is also the judge.' : 'Decoder (z to image)')));
+    const keys = rowsFor(S[0], part).map((x) => x.key);
+    for (const key of keys) {
+      const label = NICE[key] || key;
+      body.append(el('tr', {}, el('th', {}, label), ...S.map((s) => { const x = rowsFor(s, part).find((y) => y.key === key); return x ? cell(x.row, s, label, relMax) : el('td', {}, '–'); })));
+    }
+  }
+  T.append(body);
+  const L = document.getElementById('legend');
+  if (mode === 'ratio') L.replaceChildren(el('span', {}, '¼× less'), el('span', { class: 'bar', style: `background:linear-gradient(90deg, ${mix(MID, COOL, 1)}, ${mix(MID, COOL, 0)} 50%, ${mix(MID, WARM, 1)})` }), el('span', {}, '4× more than usual'), el('span', { class: 'sub' }, 'grey = 1×, the same as continued training. Color stops changing beyond 4×.'));
+  else L.replaceChildren(el('span', {}, '0%'), el('span', { class: 'bar', style: `background:linear-gradient(90deg, ${mix(PANEL, SEQ, 0)}, ${mix(PANEL, SEQ, 1)})` }), el('span', {}, `${pct(relMax)} or more`), el('span', { class: 'sub' }, 'size of the weight change after the scale-up, relative to the weights'));
+  document.getElementById('modeNote').textContent = mode === 'ratio' ? 'Weight change after the scale-up divided by the change without it.' : 'Raw size of the change. Small parts such as norm gains can show a large ratio from a small change.';
+}
+function renderDepth() {
+  const S = DATA.scaleups, T = document.getElementById('depth');
+  const relMax = Math.max(...S.flatMap((s) => ['encoder', 'decoder'].flatMap((p) => s.parts[p].blocks.map((r) => r.rel)))) * 0.9;
+  T.replaceChildren(el('thead', {}, el('tr', {}, el('th', {}, ''), ...S.map(colHead))));
+  const body = el('tbody');
+  for (const part of ['encoder', 'decoder']) for (const kind of ['attn', 'mlp']) {
+    body.append(el('tr', { class: 'group' }, el('th', { colspan: S.length + 1 }, `${part === 'encoder' ? 'Encoder' : 'Decoder'}: ${kind === 'attn' ? 'attention' : 'MLP'}, by block`)));
+    for (let b = 0; b < 9; b++) {
+      const label = `block ${b}`;
+      body.append(el('tr', {}, el('th', {}, label), ...S.map((s) => { const r = s.parts[part].blocks.find((x) => x.label === `blk${b} ${kind}`); return r ? cell(r, s, `${part} ${kind === 'attn' ? 'attention' : 'MLP'}, block ${b}`, relMax) : el('td', {}, '–'); })));
+    }
+  }
+  T.append(body);
+}
+const median = (a) => { const s = a.filter((v) => v != null && isFinite(v)).sort((x, y) => x - y); return s.length ? (s.length % 2 ? s[(s.length - 1) / 2] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2) : null; };
+function pooledRatio(s, part, keys) {   // pooled change of several rows: sqrt(sum (rel*|w|)^2) is not kept, so average the ratios
+  const rows = rowsFor(s, part).filter((x) => keys.includes(x.key)).map((x) => x.row.ratio);
+  return rows.length ? rows.reduce((a, b) => a + b, 0) / rows.length : null;
+}
+function renderTiles() {
+  const S = DATA.scaleups;
+  const both = (keysE, keysD) => median(S.flatMap((s) => [keysE && pooledRatio(s, 'encoder', keysE), keysD && pooledRatio(s, 'decoder', keysD)].filter((v) => v != null)));
+  const att = ['attn Q', 'attn K', 'attn V', 'attn out_proj'], mlp = ['mlp gate_proj', 'mlp up_proj', 'mlp down_proj'];
+  const tiles = [
+    ['Attention weights', both(att, att)], ['MLP weights', both(mlp, mlp)],
+    ['Patch embed and un-embed', both(['patch embed linear'], ['patch un-embed linear'])],
+    ['Learned latent tokens and slots', both(['latent_tokens'], ['latent_slots'])],
+    ['Query and key norm gains', both(['attn q_norm gain', 'attn k_norm gain'], ['attn q_norm gain', 'attn k_norm gain'])],
+  ];
+  document.getElementById('tiles').replaceChildren(...tiles.map(([name, v]) => el('div', { class: 'tile' }, el('b', {}, `${f2(v)}×`), el('span', {}, el('i', { style: `background:${ratioColor(v)}` }), name))));
+  const tot = (part) => median(S.map((s) => s.parts[part].total[0].ratio));
+  const early = median(S.map((s) => { const a = s.series.find((p) => p.k === 1000), z = s.series.at(-1); return a && z ? a.decoder.total / z.decoder.total : null; }));
+  const lateE = S.filter((s) => s.step >= 100000).map((s) => s.parts.encoder.total[0].ratio), earlyE = S.filter((s) => s.step <= 25000).map((s) => s.parts.encoder.total[0].ratio);
+  const F = document.getElementById('findings');
+  F.replaceChildren(
+    el('li', {}, el('b', {}, 'Attention re-learns, MLPs mostly do not. '), `Across the six scale-ups, attention weights changed about ${f2(tiles[0][1])}× as much as usual and MLP weights about ${f2(tiles[1][1])}×.`),
+    el('li', {}, el('b', {}, 'The patch layers barely notice. '), `Patch embed and un-embed changed about ${f2(tiles[2][1])}× as much as usual, although each patch now covers half the scene width.`),
+    el('li', {}, el('b', {}, 'The learned tokens move the most among large parts. '), `Latent tokens and decoder latent slots changed about ${f2(tiles[3][1])}× as much as usual.`),
+    el('li', {}, el('b', {}, 'The biggest ratios are in tiny parts. '), `Query and key norm gains show about ${f2(tiles[4][1])}×, but they hold 28 numbers per block and their raw change is small. They set how sharp attention is, which has to adapt to four times as many patches.`),
+    el('li', {}, el('b', {}, 'Both halves are affected. '), `Whole encoder: ${f2(tot('encoder'))}×. Whole decoder: ${f2(tot('decoder'))}×.`),
+    el('li', {}, el('b', {}, 'A later switch looks bigger, mostly because the baseline is quieter. '), `Encoder ratio at a 25k switch: ${f2(median(earlyE))}×. At a 100k switch: ${f2(median(lateE))}×. The raw change after the scale-up is about the same; the change without it shrinks as training settles.`),
+    el('li', {}, el('b', {}, 'It is not instant. '), `About ${pct(early)} of the decoder's 5,000-step change is already there after 1,000 steps.`),
+  );
+}
+function renderMinis() {
+  const W = 340, H = 150, pad = { l: 40, r: 12, t: 10, b: 24 };
+  const ymax = Math.max(...DATA.scaleups.flatMap((s) => s.series.flatMap((p) => [p.encoder.total, p.decoder.total]))) * 1.08;
+  const sx = (k) => pad.l + (k / 5000) * (W - pad.l - pad.r), sy = (v) => H - pad.b - (v / ymax) * (H - pad.t - pad.b);
+  const svg = (s) => {
+    const NS = 'http://www.w3.org/2000/svg', g = document.createElementNS(NS, 'svg'); g.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    const add = (tag, attrs, text) => { const n = document.createElementNS(NS, tag); for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v); if (text != null) n.textContent = text; g.append(n); return n; };
+    for (const t of [0, 0.1, 0.2]) if (t <= ymax) { add('line', { x1: pad.l, x2: W - pad.r, y1: sy(t), y2: sy(t), stroke: 'rgba(255,255,255,0.07)' }); add('text', { x: pad.l - 6, y: sy(t) + 4, 'text-anchor': 'end', fill: '#6b7482', 'font-size': 10.5 }, `${Math.round(t * 100)}%`); }
+    for (const k of [1000, 3000, 5000]) add('text', { x: sx(k), y: H - 6, 'text-anchor': 'middle', fill: '#6b7482', 'font-size': 10.5 }, `+${k / 1000}k`);
+    for (const [part, color] of [['encoder', '#3987e5'], ['decoder', '#e3a13a']]) {
+      const pts = [[0, 0], ...s.series.map((p) => [p.k, p[part].total])];
+      add('path', { d: pts.map(([k, v], i) => `${i ? 'L' : 'M'}${sx(k).toFixed(1)},${sy(v).toFixed(1)}`).join(''), fill: 'none', stroke: color, 'stroke-width': 2, 'stroke-linejoin': 'round' });
+      for (const [k, v] of pts.slice(1)) { const c = add('circle', { cx: sx(k), cy: sy(v), r: 4, fill: color, stroke: '#121822', 'stroke-width': 2 }); c.addEventListener('pointermove', (e) => showTip(e, `${part}, +${k / 1000}k steps: <b>${pct(v)}</b> changed`)); c.addEventListener('pointerleave', hideTip); }
+      const ctl = s.parts[part].total[0].control_rel;
+      add('line', { x1: sx(5000) - 16, x2: sx(5000) + 8, y1: sy(ctl), y2: sy(ctl), stroke: color, 'stroke-width': 2, 'stroke-dasharray': '4 3', opacity: 0.8 });
+    }
+    return g;
+  };
+  document.getElementById('minis').replaceChildren(...DATA.scaleups.map((s) => el('div', { class: 'panel mini' }, el('h3', {}, s.label), svg(s),
+    el('div', { class: 'cap' }, `after 5k steps: encoder ${pct(s.series.at(-1).encoder.total)}, decoder ${pct(s.series.at(-1).decoder.total)} · without the scale-up: ${pct(s.parts.encoder.total[0].control_rel)} and ${pct(s.parts.decoder.total[0].control_rel)}`))));
+}
+function renderPlain() {
+  const S = DATA.scaleups, wrap = document.getElementById('plain'); wrap.replaceChildren();
+  for (const part of ['encoder', 'decoder']) {
+    const t = el('table', { class: 'plain' }, el('tr', {}, el('th', {}, part), ...S.flatMap((s) => [el('th', {}, `${s.label} change`), el('th', {}, 'usual'), el('th', {}, 'ratio')])));
+    for (const key of rowsFor(S[0], part).map((x) => x.key)) t.append(el('tr', {}, el('td', {}, NICE[key] || key), ...S.flatMap((s) => { const r = rowsFor(s, part).find((y) => y.key === key)?.row || {}; return [el('td', {}, pct(r.rel)), el('td', {}, pct(r.control_rel)), el('td', {}, f2(r.ratio))]; })));
+    wrap.append(t);
+  }
+}
+function render() { renderHeat(); renderDepth(); }
+for (const [id, m] of [['m-ratio', 'ratio'], ['m-rel', 'rel']]) document.getElementById(id).addEventListener('click', () => { mode = m; document.getElementById('m-ratio').setAttribute('aria-pressed', m === 'ratio'); document.getElementById('m-rel').setAttribute('aria-pressed', m === 'rel'); render(); });
+fetch('/layers_data.json', { cache: 'no-store' }).then((r) => r.json()).then((d) => {
+  DATA = d;
+  document.getElementById('stamp').textContent = `Resolution-scaling experiment on the Spark · ${d.scaleups.length} scale-ups · ${d.generated || ''}`;
+  const short = d.scaleups.filter((s) => s.main_steps !== 5000);
+  document.getElementById('limits').textContent = short.length ? `${short.map((s) => s.label).join(', ')}: the branch had only ${short[0].main_steps.toLocaleString()} steps when this was computed, against 5,000 for its control, so its ratios read slightly low.` : '';
+  renderTiles(); render(); renderMinis(); renderPlain();
+}).catch((e) => { document.getElementById('stamp').textContent = `Could not load the data: ${e.message}`; });
+</script>
+</body>
+</html>

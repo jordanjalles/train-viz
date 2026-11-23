@@ -1,0 +1,780 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Flow resume cells</title>
+<style>
+  body { margin: 0; padding: 20px 16px 40px; background: #090c12;
+    color: #e8ecf3; font: 15px/1.5 system-ui, sans-serif; }
+  main { max-width: 860px; margin: 0 auto; }
+  h1 { font-size: 20px; margin: 0 0 6px; }
+  h2 { font-size: 16px; margin: 28px 0 4px; }
+  h3 { font-size: 14px; margin: 18px 0 2px; color: #e8ecf3; }
+  p, li, td { color: #a7b0c0; }
+  li { margin: 4px 0; }
+  b { color: #e8ecf3; }
+  code { color: #e8ecf3; }
+  button { font: inherit; font-weight: 600; padding: 10px 20px;
+    border-radius: 999px; border: 0; background: hsl(192 86% 64%);
+    color: #06222a; cursor: pointer; min-height: 44px; }
+  .msg { margin-left: 12px; color: hsl(150 60% 55%); }
+  pre { margin-top: 12px; padding: 14px; background: #0f141d;
+    border: 1px solid rgba(255,255,255,0.13); border-radius: 12px;
+    overflow-x: auto;
+    font: 12.5px/1.45 ui-monospace, Menlo, Consolas, monospace; }
+  .result { color: #7f8a9c; }
+  .caution { margin: 6px 0; padding: 8px 10px; border-radius: 6px;
+    border-left: 3px solid #e3a13a;
+    background: rgba(227,161,58,0.08); color: #e8ecf3; }
+  a { color: hsl(192 86% 64%); }
+  .wrap { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px;
+    margin: 8px 0; }
+  th, td { text-align: left; padding: 6px 12px 6px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.09);
+    vertical-align: top; }
+  th { color: #e8ecf3; font-weight: 600; }
+  .kind { display: inline-block; padding: 1px 8px; font-size: 12px;
+    border-radius: 999px; border: 1px solid rgba(255,255,255,0.2);
+    color: #e8ecf3; white-space: nowrap; }
+  .kind.danger { border-color: #e3a13a; }
+</style>
+</head>
+<body>
+<main>
+
+<h1>Save, load and resume for ImageNet1-Latent-Flow-Matching-XM</h1>
+<p>After these edits the notebook encodes the latents one time and
+loads them from disk on every later start. It saves the flow model,
+the optimizer and the loss history at the end of every epoch, and
+every 30 minutes inside an epoch.</p>
+<p>The blocks follow the notebook from top to bottom. A
+<b>definition</b> cell only defines functions: it is safe to run
+again at any time. An <b>action</b> cell is short and does one
+thing. Every cell that overwrites the model or a file is at the
+bottom of the notebook, below a STOP line.</p>
+
+<h2>Blocks and where they go</h2>
+<div class="wrap"><table>
+<tr><th>Block</th><th>Kind</th><th>Part of the notebook</th>
+<th>Where it goes</th></tr>
+<tr><td><a href="#b1">1</a>: run settings</td><td><span class="kind">settings</span></td><td>Top: first cell</td><td>Add at the end of the first cell (the hyperparameters).</td></tr>
+<tr><td><a href="#b2">2</a>: validation image loader</td><td><span class="kind">action</span></td><td>Data cells</td><td>New cell directly below the cell that starts with <code>train_ds = BufferedImageNet(</code>.</td></tr>
+<tr><td><a href="#b3">3</a>: save / resume / z cache helpers</td><td><span class="kind">definition</span></td><td>Helpers</td><td>New cell directly below the cell that starts with <code>#log metrics</code>.</td></tr>
+<tr><td><a href="#b4A">4A</a>: train latent cache</td><td><span class="kind">action</span></td><td>After init models</td><td>Replaces the whole cell that starts with <code># ---------- Cache encoder outputs for latent-flow training</code>.</td></tr>
+<tr><td><a href="#b4B">4B</a>: validation latent cache</td><td><span class="kind">action</span></td><td>After init models</td><td>Replaces the whole cell that starts with <code># ---------- Cache encoder VALIDATION outputs</code>.</td></tr>
+<tr><td><a href="#b5A">5A</a>: training loop starts at the saved epoch</td><td><span class="kind">edit</span></td><td>Training loop cell</td><td>Replaces the line <code>for epoch in range(num_epochs):</code>.</td></tr>
+<tr><td><a href="#b5B">5B</a>: save every AUTOSAVE_MINUTES inside an epoch</td><td><span class="kind">edit</span></td><td>Training loop cell</td><td>New line above <code>report_steps += 1</code>. Keep the eight spaces.</td></tr>
+<tr><td><a href="#b5C">5C</a>: save at the end of every epoch</td><td><span class="kind">edit</span></td><td>Training loop cell</td><td>Last line of the cell. Keep the four spaces.</td></tr>
+<tr><td><a href="#b6A">6A</a>: STOP line</td><td><span class="kind">marker</span></td><td>Bottom</td><td>New cell directly above the cell that starts with <code># load flow model</code>.</td></tr>
+<tr><td><a href="#b6B">6B</a>: resume a run</td><td><span class="kind danger">action, overwrites</span></td><td>Bottom, below the STOP line</td><td>New cell below the STOP line.</td></tr>
+<tr><td><a href="#b6C">6C</a>: save now</td><td><span class="kind danger">action, overwrites</span></td><td>Bottom, below the STOP line</td><td>New cell below the resume cell.</td></tr>
+<tr><td><a href="#b6D">6D</a>: re-encode the z cache</td><td><span class="kind danger">action, overwrites</span></td><td>Bottom, below the STOP line</td><td>New cell below the save cell. It is commented out.</td></tr>
+<tr><td><a href="#bE1">E1</a>: z cache helpers for another notebook</td><td><span class="kind">definition</span></td><td>Another notebook</td><td>New cell in the other notebook.</td></tr>
+<tr><td><a href="#bE2">E2</a>: load the latents in another notebook</td><td><span class="kind">action</span></td><td>Another notebook</td><td>New cell below E1.</td></tr>
+</table></div>
+
+
+<h2>Set up (one time)</h2>
+<p>Open
+<code>MaskedAutoencoders/ImageNet1-Latent-Flow-Matching-XM.ipynb</code>.
+Work from the top of the notebook to the bottom.</p>
+
+<h3>Top: first cell</h3>
+<ol>
+  <li>Paste block 1 at the end of the first cell.</li>
+  <li>Set <code>RUN_NAME</code> to a name for this training run.</li>
+</ol>
+
+<h3>Data cells</h3>
+<ol start="3">
+  <li>Add a new cell directly below the cell that starts with
+  <code>train_ds = BufferedImageNet(</code>.</li>
+  <li>Paste block 2 into the new cell.</li>
+</ol>
+
+<h3>Helpers</h3>
+<ol start="5">
+  <li>Add a new cell directly below the cell that starts with
+  <code>#log metrics</code>.</li>
+  <li>Paste block 3 into the new cell. You can collapse this cell.</li>
+</ol>
+
+<h3>Cache cells (below the init-models cell)</h3>
+<ol start="7">
+  <li>Replace the whole cell that starts with
+  <code># ---------- Cache encoder outputs for latent-flow
+  training</code> with block 4A.</li>
+  <li>Replace the whole cell that starts with
+  <code># ---------- Cache encoder VALIDATION outputs</code> with
+  block 4B.</li>
+</ol>
+
+<h3>Training loop cell</h3>
+<ol start="9">
+  <li>Go to the cell that starts with
+  <code># MAIN TRAINING LOOP</code>.</li>
+  <li>Replace the line <code>for epoch in range(num_epochs):</code>
+  with block 5A.</li>
+  <li>Paste block 5B on a new line above
+  <code>report_steps += 1</code>. Keep the eight spaces.</li>
+  <li>Paste block 5C as the last line of the cell. Keep the four
+  spaces.</li>
+</ol>
+
+<h3>Bottom of the notebook</h3>
+<ol start="13">
+  <li>Go to the cell that starts with
+  <code># load flow model</code>.</li>
+  <li>Add four new cells directly above it.</li>
+  <li>Paste blocks 6A, 6B, 6C and 6D into them, in that order.</li>
+</ol>
+
+<h3>First run</h3>
+<ol start="16">
+  <li>Restart the kernel.</li>
+  <li>Run the cells in order, down to and including the cell that
+  starts with <code># MAIN TRAINING LOOP</code>.
+  <div class="result">Result, this first time only: each cache cell
+  encodes as before and ends with
+  <code>z cache [train]: saved 1,281,167 to …</code>. Each epoch
+  ends with <code>saved &lt;RUN_NAME&gt; | epochs done N</code>.</div></li>
+</ol>
+<div class="caution">Do not use "Run All". It also runs the cells
+below the STOP line.</div>
+
+<h2>Resume after a kernel restart</h2>
+<ol>
+  <li>Run the cells in order, from the top down to and including the
+  cell that starts with <code>#compile and speed</code>.
+  <div class="result">Result: each cache cell prints
+  <code>z cache [train]: loaded 1,281,167 latents from …</code>
+  in seconds. If it prints <code>rejected, encoding</code>, the
+  lines below it name what changed.</div></li>
+  <li>Scroll to the bottom of the notebook, below the STOP line.</li>
+  <li>Run the cell that starts with <code># RESUME A RUN</code>.
+  <div class="result">Result:
+  <code>resumed &lt;RUN_NAME&gt; … epochs done: N | steps logged: …
+  | lr: … | optimizer restored</code>.</div></li>
+  <li>Scroll back up to the cell that starts with
+  <code># MAIN TRAINING LOOP</code> and run it.
+  <div class="result">Result: the first <code>step</code> line shows
+  a step count above N × batches per epoch, and the next epoch line
+  is <code>EPOCH N+1</code>.</div></li>
+</ol>
+<p>A new run needs no step at the bottom. With no resume, the loop
+starts at epoch 0.</p>
+
+<h2>Only the latents, in a new notebook</h2>
+<ol>
+  <li>Run the set-up above one time, so the two cache files exist.</li>
+  <li>In the new notebook, paste block E1 into a cell and run it.
+  <div class="result">Result: no output. The cell only defines
+  <code>load_z_cache</code> and <code>latent_loader</code>. You can
+  collapse it and leave it.</div></li>
+  <li>Paste block E2 into the next cell.</li>
+  <li>If the new notebook uses another autoencoder, change
+  <code>AE_NAME</code> in block E2.</li>
+  <li>Run the E2 cell.
+  <div class="result">Result:
+  <code>z cache [train]: (1281167, 48, 48) torch.bfloat16 from …</code>
+  and the same line for <code>val</code>.</div></li>
+</ol>
+<p><b>E1 defines, E2 acts.</b> The two cells need no encoder, no
+ImageNet loader and no flow model. They only read
+<code>$ML_CHECKPOINTS</code>. They do not check that the file matches
+an encoder, because they do not load one.</p>
+
+<h2>Notes</h2>
+<ul>
+  <li>Latents: <code>$ML_CHECKPOINTS/z_cache/&lt;ae_name&gt;_128px/train.pt</code>
+  (about 5.5 GiB) and <code>val.pt</code>. A cache is used only when
+  <code>ae_name</code>, the image size, the image count, the token
+  dimensions and the file <code>encoder.pt2</code> (size and
+  modified time) are the same as when it was written.</li>
+  <li>Runs: <code>$ML_CHECKPOINTS/flow/&lt;RUN_NAME&gt;/latest.pt</code>,
+  plus <code>epoch_010.pt</code>, <code>epoch_020.pt</code>, … as
+  kept copies.</li>
+  <li>The resume cell takes arguments: <code>load_run("other_run")</code>
+  loads another run, and <code>load_run(tag="epoch_010")</code> loads
+  a kept copy.</li>
+  <li><code>load_run()</code> restores the learning rate that was
+  saved. The <code>#drop lr</code> cell changes it again if you run
+  that cell after the resume cell.</li>
+  <li>A save inside an epoch records the epoch as not done. A resume
+  from it repeats that epoch from its first batch, with the newer
+  weights. The loss history keeps the steps already logged.</li>
+  <li>If you interrupt the loop and run the loop cell again without
+  a restart, it continues at the first epoch that is not done.</li>
+  <li>The helpers cell (block 3) keeps no state. The epoch count and
+  the autosave clock live on <code>flow_model</code>, so running the
+  helpers cell again changes nothing. A new
+  <code>init_models()</code> starts both from zero.</li>
+  <li>The validation cache cell no longer builds
+  <code>test_dataloader</code>. Block 2 builds it in the data cells,
+  so the later probe cells that read it still work.</li>
+  <li>The loss history is stored as float32.</li>
+  <li>The three old cells at the bottom (<code>name = …</code>,
+  <code># load flow model</code>, <code># save flow model</code>)
+  can stay. The new helpers do not use them. Their
+  <code>flow_model</code> key is the same, so the old load cell can
+  also read <code>latest.pt</code>.</li>
+  <li>A model with new parameters still loads: the new parameters
+  keep their initial values, and the printout names them. The
+  optimizer state is then not restored.</li>
+  <li>The STOP line in block 6A is shorter than the one in the AE
+  notebook, to fit 72 characters.</li>
+</ul>
+
+<section id="b1">
+<h2>Block 1: run settings</h2>
+<p><span class="kind">settings</span> Add at the end of the first cell (the hyperparameters).</p>
+<button>Copy block 1</button><span class="msg" role="status"></span>
+<pre># ---- save / resume ----
+RUN_NAME = &quot;lf_imagenet_xm12&quot;  # one folder per training run
+KEEP_EVERY_EPOCHS = 10         # also keep epoch_010.pt, ...
+AUTOSAVE_MINUTES = 30          # save inside an epoch this often
+</pre>
+</section>
+<section id="b2">
+<h2>Block 2: validation image loader</h2>
+<p><span class="kind">action</span> New cell directly below the cell that starts with <code>train_ds = BufferedImageNet(</code>.</p>
+<button>Copy block 2</button><span class="msg" role="status"></span>
+<pre># Validation image loader (moved here from the val cache cell)
+test_ds = BufferedImageNet(
+    paths=val_paths,
+    transform=ImageNetFullImage(IMAGE_SIZE),
+    shards_in_ram=SHARDS_IN_RAM,
+    shuffle=False,
+    num_images=50_000,
+)
+
+test_generator = torch.Generator().manual_seed(
+    DATA_SEED + 1
+)
+
+test_dataloader = DataLoader(
+    test_ds,
+    batch_size=CACHE_BATCH_SIZE,
+    drop_last=False,
+
+    num_workers=2,
+    pin_memory=True,
+    prefetch_factor=LOADER_PREFETCH_BATCHES,
+
+    worker_init_fn=seed_imagenet_worker,
+    generator=test_generator,
+
+    persistent_workers=True,
+    multiprocessing_context=&quot;fork&quot;,
+)
+</pre>
+</section>
+<section id="b3">
+<h2>Block 3: save / resume / z cache helpers</h2>
+<p><span class="kind">definition</span> New cell directly below the cell that starts with <code>#log metrics</code>.</p>
+<button>Copy block 3</button><span class="msg" role="status"></span>
+<pre># ---------- save / resume / z cache helpers: definitions only ---- #
+# Running this cell loads nothing, saves nothing and changes nothing.
+import shutil
+
+from torch.utils.data import TensorDataset, DataLoader
+
+
+def _atomic_save(obj, path):
+    # Write a temp file, then swap it in. A crash in the middle
+    # leaves the previous file as it was.
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + &quot;.tmp&quot;)
+    torch.save(obj, tmp)
+    os.replace(tmp, path)
+
+
+def _z_cache_meta(n_images):
+    # What a cache file must match to be used again.
+    encoder_file = (
+        Path(os.environ[&quot;ML_MODELS&quot;]) / ae_name / &quot;encoder.pt2&quot;
+    )
+    stat = encoder_file.stat()
+
+    return {
+        &quot;ae_name&quot;: ae_name,
+        &quot;image_size&quot;: int(IMAGE_SIZE),
+        &quot;n_images&quot;: int(n_images),
+        &quot;n_latent_tokens&quot;: int(n_latent_tokens),
+        &quot;emb_dim&quot;: int(emb_dim),
+        # size and modified time of encoder.pt2
+        &quot;encoder_file&quot;: [int(stat.st_size), int(stat.st_mtime)],
+    }
+
+
+def z_cache(split, loader, n_images, force=False):
+    # Latents of one split. Loads the file when it matches this
+    # encoder and image size. Otherwise encodes and saves.
+    path = (
+        Path(os.environ[&quot;ML_CHECKPOINTS&quot;])
+        / &quot;z_cache&quot;
+        / f&quot;{ae_name}_{IMAGE_SIZE}px&quot;
+        / f&quot;{split}.pt&quot;
+    )
+    meta = _z_cache_meta(n_images)
+
+    if force:
+        print(f&quot;z cache [{split}]: force=True, encoding again&quot;)
+
+    elif not path.exists():
+        print(f&quot;z cache [{split}]: no file at {path}, encoding&quot;)
+
+    else:
+        saved = torch.load(
+            path,
+            map_location=&quot;cpu&quot;,
+            weights_only=True,
+        )
+        changed = [
+            key for key in meta
+            if saved[&quot;meta&quot;].get(key) != meta[key]
+        ]
+
+        if not changed:
+            z, y = saved[&quot;z&quot;], saved[&quot;y&quot;]
+            print(
+                f&quot;z cache [{split}]: loaded {len(z):,} latents &quot;
+                f&quot;from {path} &quot;
+                f&quot;({z.numel() * z.element_size() / 1024**3:.2f}&quot;
+                f&quot; GiB)&quot;
+            )
+            return z, y
+
+        print(f&quot;z cache [{split}]: {path} rejected, encoding&quot;)
+        for key in changed:
+            print(
+                f&quot;  {key}: file has {saved[&#x27;meta&#x27;].get(key)!r}&quot;
+                f&quot;, notebook has {meta[key]!r}&quot;
+            )
+        del saved
+
+    z_all = torch.empty(
+        n_images,
+        n_latent_tokens,
+        emb_dim,
+        dtype=torch.bfloat16,
+    )
+    y_all = torch.empty(
+        n_images,
+        dtype=torch.long,
+    )
+
+    write_idx = 0
+
+    with torch.inference_mode():
+
+        for i, (images, labels) in enumerate(loader):
+
+            images = images.to(
+                device,
+                non_blocking=True,
+            )
+
+            z = encoder(images)
+
+            end_idx = min(
+                write_idx + z.shape[0],
+                n_images,
+            )
+            n = end_idx - write_idx
+
+            z_all[write_idx:end_idx].copy_(
+                z[:n].to(
+                    device=&quot;cpu&quot;,
+                    dtype=torch.bfloat16,
+                )
+            )
+            y_all[write_idx:end_idx].copy_(
+                labels[:n].to(
+                    device=&quot;cpu&quot;,
+                    dtype=torch.long,
+                )
+            )
+
+            write_idx = end_idx
+
+            if i % 100 == 0:
+                print(
+                    f&quot;{split} batch {i:,} | &quot;
+                    f&quot;{write_idx:,}/{n_images:,} &quot;
+                    f&quot;({100 * write_idx / n_images:.1f}%)&quot;
+                )
+
+    # Safety in case the loader produced fewer images than expected
+    if write_idx &lt; n_images:
+        z_all = z_all[:write_idx].clone()
+        y_all = y_all[:write_idx].clone()
+
+    _atomic_save({&quot;z&quot;: z_all, &quot;y&quot;: y_all, &quot;meta&quot;: meta}, path)
+    print(f&quot;z cache [{split}]: saved {len(z_all):,} to {path}&quot;)
+
+    return z_all, y_all
+
+
+def load_z_cache(ae_name, split=&quot;train&quot;, image_size=128):
+    # Needs no encoder, no image loader and no flow model.
+    path = (
+        Path(os.environ[&quot;ML_CHECKPOINTS&quot;])
+        / &quot;z_cache&quot;
+        / f&quot;{ae_name}_{image_size}px&quot;
+        / f&quot;{split}.pt&quot;
+    )
+    saved = torch.load(
+        path,
+        map_location=&quot;cpu&quot;,
+        weights_only=True,
+    )
+    z, y = saved[&quot;z&quot;], saved[&quot;y&quot;]
+    print(
+        f&quot;z cache [{split}]: {tuple(z.shape)} {z.dtype} &quot;
+        f&quot;from {path}&quot;
+    )
+    return z, y
+
+
+def latent_loader(z, y, train, batch_size=64):
+    # train=True: shuffled, full batches only.
+    # train=False: fixed order, every sample.
+    return DataLoader(
+        TensorDataset(z, y),
+        batch_size=batch_size,
+        shuffle=train,
+        num_workers=0,
+        pin_memory=True,
+        drop_last=train,
+    )
+
+
+def _run_dir(run_name=None):
+    return (
+        Path(os.environ[&quot;ML_CHECKPOINTS&quot;])
+        / &quot;flow&quot;
+        / (run_name or RUN_NAME)
+    )
+
+
+def save_run(epochs_done, tag=&quot;latest&quot;, keep=True):
+    # Everything needed to continue: model, optimizer, logs.
+    state = {
+        name.replace(&quot;_orig_mod.&quot;, &quot;&quot;): value
+        for name, value in flow_model.state_dict().items()
+    }
+
+    checkpoint = {
+        &quot;flow_model&quot;: state,
+        &quot;optimizer&quot;: optimizer.state_dict(),
+        &quot;logs&quot;: {
+            name: torch.tensor(values, dtype=torch.float32)
+            for name, values in logs.items()
+        },
+        &quot;epochs_done&quot;: int(epochs_done),
+        &quot;config&quot;: {
+            &quot;ae_name&quot;: ae_name,
+            &quot;image_size&quot;: int(IMAGE_SIZE),
+            &quot;n_latent_tokens&quot;: n_latent_tokens,
+            &quot;emb_dim&quot;: emb_dim,
+            &quot;num_blocks&quot;: num_blocks,
+            &quot;n_heads&quot;: n_heads,
+            &quot;head_size&quot;: head_size,
+            &quot;flow_emb_dim&quot;: flow_emb_dim,
+            &quot;flow_noise_scale&quot;: flow_noise_scale,
+            &quot;XM_K&quot;: XM_K,
+            &quot;XM_N&quot;: XM_N,
+        },
+    }
+
+    path = _run_dir() / f&quot;{tag}.pt&quot;
+    _atomic_save(checkpoint, path)
+
+    # The run state lives on the model, not in this cell, so
+    # running this cell again never resets it.
+    flow_model.epochs_done = int(epochs_done)
+    flow_model.last_save_time = time.perf_counter()
+
+    note = &quot;&quot;
+    if (
+        keep
+        and epochs_done &gt; 0
+        and epochs_done % KEEP_EVERY_EPOCHS == 0
+    ):
+        kept = path.with_name(f&quot;epoch_{epochs_done:03d}.pt&quot;)
+        # copy to a temp name, then swap it in: stopping the
+        # kernel in the middle never leaves a half-written copy
+        tmp = kept.with_name(kept.name + &quot;.tmp&quot;)
+        shutil.copy2(path, tmp)
+        os.replace(tmp, kept)
+        note = f&quot; (+ {kept.name})&quot;
+
+    print(f&quot;saved {RUN_NAME} | epochs done {epochs_done}{note}&quot;)
+
+
+def load_run(run_name=None, tag=&quot;latest&quot;):
+    # Restore model, optimizer and logs in place. The training
+    # loop then starts at the saved epoch.
+    global start_epoch
+
+    path = _run_dir(run_name) / f&quot;{tag}.pt&quot;
+    checkpoint = torch.load(
+        path,
+        map_location=device,
+        weights_only=True,
+    )
+
+    saved_ae = checkpoint[&quot;config&quot;][&quot;ae_name&quot;]
+    if saved_ae != ae_name:
+        print(
+            f&quot;WARNING: run was trained on {saved_ae!r}, &quot;
+            f&quot;notebook uses {ae_name!r}&quot;
+        )
+
+    model = getattr(flow_model, &quot;_orig_mod&quot;, flow_model)
+    result = model.load_state_dict(
+        checkpoint[&quot;flow_model&quot;],
+        strict=False,
+    )
+    if result.missing_keys:
+        print(&quot;not in checkpoint (kept as initialized):&quot;)
+        print(&quot;  &quot; + &quot;, &quot;.join(result.missing_keys))
+    if result.unexpected_keys:
+        print(&quot;in checkpoint but not in model (ignored):&quot;)
+        print(&quot;  &quot; + &quot;, &quot;.join(result.unexpected_keys))
+
+    try:
+        optimizer.load_state_dict(checkpoint[&quot;optimizer&quot;])
+        optimizer_note = &quot;optimizer restored&quot;
+    except (ValueError, KeyError, RuntimeError) as error:
+        optimizer_note = f&quot;optimizer NOT restored ({error})&quot;
+
+    logs.clear()
+    for name, values in checkpoint[&quot;logs&quot;].items():
+        logs[name] = values.tolist()
+
+    start_epoch = checkpoint[&quot;epochs_done&quot;]
+    flow_model.epochs_done = start_epoch
+
+    print(
+        f&quot;resumed {run_name or RUN_NAME} from {path}\n&quot;
+        f&quot;  epochs done: {start_epoch} | &quot;
+        f&quot;steps logged: {len(logs.get(&#x27;flow_loss&#x27;, [])):,} | &quot;
+        f&quot;lr: {optimizer.param_groups[0][&#x27;lr&#x27;]:.2e} | &quot;
+        f&quot;{optimizer_note}&quot;
+    )
+
+    return start_epoch
+
+
+def resume_epoch():
+    # Epoch the training loop starts at. 0 for a new model.
+    return getattr(flow_model, &quot;epochs_done&quot;, 0)
+
+
+def autosave(epoch):
+    # Called every step. Saves when AUTOSAVE_MINUTES have passed
+    # since the last save. A resume from this save repeats the
+    # interrupted epoch.
+    now = time.perf_counter()
+    last = getattr(flow_model, &quot;last_save_time&quot;, None)
+
+    if last is None:
+        # first step of a new model: start the clock
+        flow_model.last_save_time = now
+
+    elif now - last &gt;= AUTOSAVE_MINUTES * 60:
+        save_run(epoch, keep=False)
+</pre>
+</section>
+<section id="b4A">
+<h2>Block 4A: train latent cache</h2>
+<p><span class="kind">action</span> Replaces the whole cell that starts with <code># ---------- Cache encoder outputs for latent-flow training</code>.</p>
+<button>Copy block 4A</button><span class="msg" role="status"></span>
+<pre># ---------- Cache encoder outputs for latent-flow training -------- #
+# Loads from disk when the file matches this encoder.
+cached_z, cached_y = z_cache(
+    &quot;train&quot;, train_dataloader, len(train_ds),
+)
+latent_train_dataloader = latent_loader(
+    cached_z, cached_y, train=True,
+    batch_size=CACHE_BATCH_SIZE,
+)
+print(f&quot;Latent batches: {len(latent_train_dataloader):,}&quot;)
+</pre>
+</section>
+<section id="b4B">
+<h2>Block 4B: validation latent cache</h2>
+<p><span class="kind">action</span> Replaces the whole cell that starts with <code># ---------- Cache encoder VALIDATION outputs</code>.</p>
+<button>Copy block 4B</button><span class="msg" role="status"></span>
+<pre># ---------- Cache encoder VALIDATION outputs for testing ---------- #
+# Loads from disk when the file matches this encoder.
+cached_test_z, cached_test_y = z_cache(
+    &quot;val&quot;, test_dataloader, len(test_ds),
+)
+latent_test_dataloader = latent_loader(
+    cached_test_z, cached_test_y, train=False,
+    batch_size=CACHE_BATCH_SIZE,
+)
+print(f&quot;Validation batches: {len(latent_test_dataloader):,}&quot;)
+</pre>
+</section>
+<section id="b5A">
+<h2>Block 5A: training loop starts at the saved epoch</h2>
+<p><span class="kind">edit</span> Replaces the line <code>for epoch in range(num_epochs):</code>.</p>
+<button>Copy block 5A</button><span class="msg" role="status"></span>
+<pre>start_epoch = resume_epoch()
+
+for epoch in range(start_epoch, num_epochs):
+</pre>
+</section>
+<section id="b5B">
+<h2>Block 5B: save every AUTOSAVE_MINUTES inside an epoch</h2>
+<p><span class="kind">edit</span> New line above <code>report_steps += 1</code>. Keep the eight spaces.</p>
+<button>Copy block 5B</button><span class="msg" role="status"></span>
+<pre>        autosave(epoch)
+</pre>
+</section>
+<section id="b5C">
+<h2>Block 5C: save at the end of every epoch</h2>
+<p><span class="kind">edit</span> Last line of the cell. Keep the four spaces.</p>
+<button>Copy block 5C</button><span class="msg" role="status"></span>
+<pre>    save_run(epoch + 1)
+</pre>
+</section>
+<section id="b6A">
+<h2>Block 6A: STOP line</h2>
+<p><span class="kind">marker</span> New cell directly above the cell that starts with <code># load flow model</code>.</p>
+<button>Copy block 6A</button><span class="msg" role="status"></span>
+<pre>####################### STOP - SAVING/OVERWRITING BELOW ################
+</pre>
+</section>
+<section id="b6B">
+<h2>Block 6B: resume a run</h2>
+<p><span class="kind danger">action, overwrites</span> New cell below the STOP line.</p>
+<button>Copy block 6B</button><span class="msg" role="status"></span>
+<pre># RESUME A RUN
+# Overwrites flow_model, optimizer and logs with the last save
+# of RUN_NAME. Then run the &quot;# MAIN TRAINING LOOP&quot; cell.
+load_run()
+</pre>
+</section>
+<section id="b6C">
+<h2>Block 6C: save now</h2>
+<p><span class="kind danger">action, overwrites</span> New cell below the resume cell.</p>
+<button>Copy block 6C</button><span class="msg" role="status"></span>
+<pre># SAVE NOW
+# Overwrites latest.pt of RUN_NAME on disk.
+save_run(resume_epoch())
+</pre>
+</section>
+<section id="b6D">
+<h2>Block 6D: re-encode the z cache</h2>
+<p><span class="kind danger">action, overwrites</span> New cell below the save cell. It is commented out.</p>
+<button>Copy block 6D</button><span class="msg" role="status"></span>
+<pre># RE-ENCODE THE Z CACHE
+# Overwrites both cache files on disk. Takes as long as the
+# first encode. Remove the &quot;# &quot; of the lines below to run it.
+# Then run the two cache cells again to rebuild the loaders.
+# z_cache(
+#     &quot;train&quot;, train_dataloader, len(train_ds), force=True,
+# )
+# z_cache(
+#     &quot;val&quot;, test_dataloader, len(test_ds), force=True,
+# )
+</pre>
+</section>
+<section id="bE1">
+<h2>Block E1: z cache helpers for another notebook</h2>
+<p><span class="kind">definition</span> New cell in the other notebook.</p>
+<button>Copy block E1</button><span class="msg" role="status"></span>
+<pre># ---------- z cache helpers: definitions only ---------- #
+# Running this cell loads nothing and changes nothing.
+import os
+from pathlib import Path
+
+import torch
+from torch.utils.data import TensorDataset, DataLoader
+
+
+def load_z_cache(ae_name, split=&quot;train&quot;, image_size=128):
+    # Needs no encoder, no image loader and no flow model.
+    path = (
+        Path(os.environ[&quot;ML_CHECKPOINTS&quot;])
+        / &quot;z_cache&quot;
+        / f&quot;{ae_name}_{image_size}px&quot;
+        / f&quot;{split}.pt&quot;
+    )
+    saved = torch.load(
+        path,
+        map_location=&quot;cpu&quot;,
+        weights_only=True,
+    )
+    z, y = saved[&quot;z&quot;], saved[&quot;y&quot;]
+    print(
+        f&quot;z cache [{split}]: {tuple(z.shape)} {z.dtype} &quot;
+        f&quot;from {path}&quot;
+    )
+    return z, y
+
+
+def latent_loader(z, y, train, batch_size=64):
+    # train=True: shuffled, full batches only.
+    # train=False: fixed order, every sample.
+    return DataLoader(
+        TensorDataset(z, y),
+        batch_size=batch_size,
+        shuffle=train,
+        num_workers=0,
+        pin_memory=True,
+        drop_last=train,
+    )
+</pre>
+</section>
+<section id="bE2">
+<h2>Block E2: load the latents in another notebook</h2>
+<p><span class="kind">action</span> New cell below E1.</p>
+<button>Copy block E2</button><span class="msg" role="status"></span>
+<pre># ---------- Load the ImageNet latents ---------- #
+AE_NAME = &quot;ae_25M_selfteach_imagenet_MOcrop_180k&quot;
+
+cached_z, cached_y = load_z_cache(AE_NAME, &quot;train&quot;)
+cached_test_z, cached_test_y = load_z_cache(AE_NAME, &quot;val&quot;)
+
+latent_train_dataloader = latent_loader(
+    cached_z, cached_y, train=True,
+)
+latent_test_dataloader = latent_loader(
+    cached_test_z, cached_test_y, train=False,
+)
+</pre>
+</section>
+<p style="margin-top:26px"><a href="/sprint.html">Sparse middle (SPRINT) cells</a> · <a href="/">Back to train-viz</a></p>
+</main>
+<script>
+for (const section of document.querySelectorAll('section')) {
+  const button = section.querySelector('button');
+  const msg = section.querySelector('.msg');
+  const pre = section.querySelector('pre');
+  button.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(pre.textContent);
+      msg.textContent = 'Copied';
+    } catch {
+      const range = document.createRange();
+      range.selectNodeContents(pre);
+      const sel = getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+      msg.textContent = 'Selected: press Ctrl+C (or Cmd+C) to copy';
+    }
+    setTimeout(() => { msg.textContent = ''; }, 4000);
+  });
+}
+</script>
+</body>
+</html>

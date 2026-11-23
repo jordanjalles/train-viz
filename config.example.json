@@ -1,0 +1,8 @@
+{
+  "host": "127.0.0.1",
+  "port": 8600,
+  "roots": [
+    {"id": "selfteach", "label": "self-teaching AE runs", "kind": "harness", "path": "<data-root>/stl10-selfteach/runs"},
+    {"id": "shared", "label": "notebook runs (sink)", "kind": "harness", "path": "<data-root>/training-runs"}
+  ]
+}

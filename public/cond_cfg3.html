@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Class-conditional samples</title>
+<style>
+:root { --bg: #fbfbfa; --ink: #1d1d1b; --muted: #6b6b66; --line: #e2e1dc; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #171716; --ink: #ecebe6; --muted: #a2a19b; --line: #34332f; } }
+:root[data-theme="dark"] { --bg: #171716; --ink: #ecebe6; --muted: #a2a19b; --line: #34332f; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 system-ui, sans-serif; }
+main { max-width: 1180px; margin: 0 auto; padding: 24px 16px 48px; }
+h1 { font-size: 22px; margin: 0 0 8px; }
+p { color: var(--muted); margin: 0 0 20px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); gap: 14px 10px; }
+figure { margin: 0; }
+img { width: 100%; height: auto; image-rendering: auto; border-radius: 4px; display: block; }
+figcaption { font-size: 12.5px; color: var(--muted); margin-top: 4px; overflow-wrap: anywhere; }
+a { color: inherit; }
+</style>
+</head>
+<body>
+<main>
+<h1>Class-conditional samples, guidance scale 3</h1>
+<p>Run <code>unify-wclamp01-cond-seed2-inet128-100k--b65aa96ea9b14700b02ee3a6c8fa475f</code>, EMA weights at step 100,000, 16 Euler steps, seeds 0 to 47.
+Each sample has the class under it. FID of this setting (10,000 samples): 118.9. <a href="/">Back to train-viz</a></p>
+<div class="grid">
+  <figure><img src="cond_cfg3/000.png" width="128" height="128" alt="Sample of class slide rule"><figcaption>slide rule</figcaption></figure>
+  <figure><img src="cond_cfg3/001.png" width="128" height="128" alt="Sample of class spatula"><figcaption>spatula</figcaption></figure>
+  <figure><img src="cond_cfg3/002.png" width="128" height="128" alt="Sample of class bannister"><figcaption>bannister</figcaption></figure>
+  <figure><img src="cond_cfg3/003.png" width="128" height="128" alt="Sample of class coral reef"><figcaption>coral reef</figcaption></figure>
+  <figure><img src="cond_cfg3/004.png" width="128" height="128" alt="Sample of class Siamese cat"><figcaption>Siamese cat</figcaption></figure>
+  <figure><img src="cond_cfg3/005.png" width="128" height="128" alt="Sample of class sax"><figcaption>sax</figcaption></figure>
+  <figure><img src="cond_cfg3/006.png" width="128" height="128" alt="Sample of class airliner"><figcaption>airliner</figcaption></figure>
+  <figure><img src="cond_cfg3/007.png" width="128" height="128" alt="Sample of class walking stick"><figcaption>walking stick</figcaption></figure>
+  <figure><img src="cond_cfg3/008.png" width="128" height="128" alt="Sample of class vulture"><figcaption>vulture</figcaption></figure>
+  <figure><img src="cond_cfg3/009.png" width="128" height="128" alt="Sample of class black-and-tan coonhound"><figcaption>black-and-tan coonhound</figcaption></figure>
+  <figure><img src="cond_cfg3/010.png" width="128" height="128" alt="Sample of class long-horned beetle"><figcaption>long-horned beetle</figcaption></figure>
+  <figure><img src="cond_cfg3/011.png" width="128" height="128" alt="Sample of class electric ray"><figcaption>electric ray</figcaption></figure>
+  <figure><img src="cond_cfg3/012.png" width="128" height="128" alt="Sample of class accordion"><figcaption>accordion</figcaption></figure>
+  <figure><img src="cond_cfg3/013.png" width="128" height="128" alt="Sample of class breakwater"><figcaption>breakwater</figcaption></figure>
+  <figure><img src="cond_cfg3/014.png" width="128" height="128" alt="Sample of class plow"><figcaption>plow</figcaption></figure>
+  <figure><img src="cond_cfg3/015.png" width="128" height="128" alt="Sample of class speedboat"><figcaption>speedboat</figcaption></figure>
+  <figure><img src="cond_cfg3/016.png" width="128" height="128" alt="Sample of class German short-haired pointer"><figcaption>German short-haired pointer</figcaption></figure>
+  <figure><img src="cond_cfg3/017.png" width="128" height="128" alt="Sample of class analog clock"><figcaption>analog clock</figcaption></figure>
+  <figure><img src="cond_cfg3/018.png" width="128" height="128" alt="Sample of class king penguin"><figcaption>king penguin</figcaption></figure>
+  <figure><img src="cond_cfg3/019.png" width="128" height="128" alt="Sample of class kuvasz"><figcaption>kuvasz</figcaption></figure>
+  <figure><img src="cond_cfg3/020.png" width="128" height="128" alt="Sample of class Crock Pot"><figcaption>Crock Pot</figcaption></figure>
+  <figure><img src="cond_cfg3/021.png" width="128" height="128" alt="Sample of class leaf beetle"><figcaption>leaf beetle</figcaption></figure>
+  <figure><img src="cond_cfg3/022.png" width="128" height="128" alt="Sample of class magpie"><figcaption>magpie</figcaption></figure>
+  <figure><img src="cond_cfg3/023.png" width="128" height="128" alt="Sample of class quill"><figcaption>quill</figcaption></figure>
+  <figure><img src="cond_cfg3/024.png" width="128" height="128" alt="Sample of class mountain tent"><figcaption>mountain tent</figcaption></figure>
+  <figure><img src="cond_cfg3/025.png" width="128" height="128" alt="Sample of class drumstick"><figcaption>drumstick</figcaption></figure>
+  <figure><img src="cond_cfg3/026.png" width="128" height="128" alt="Sample of class Pembroke"><figcaption>Pembroke</figcaption></figure>
+  <figure><img src="cond_cfg3/027.png" width="128" height="128" alt="Sample of class bluetick"><figcaption>bluetick</figcaption></figure>
+  <figure><img src="cond_cfg3/028.png" width="128" height="128" alt="Sample of class sea urchin"><figcaption>sea urchin</figcaption></figure>
+  <figure><img src="cond_cfg3/029.png" width="128" height="128" alt="Sample of class face powder"><figcaption>face powder</figcaption></figure>
+  <figure><img src="cond_cfg3/030.png" width="128" height="128" alt="Sample of class cuirass"><figcaption>cuirass</figcaption></figure>
+  <figure><img src="cond_cfg3/031.png" width="128" height="128" alt="Sample of class ski mask"><figcaption>ski mask</figcaption></figure>
+  <figure><img src="cond_cfg3/032.png" width="128" height="128" alt="Sample of class thatch"><figcaption>thatch</figcaption></figure>
+  <figure><img src="cond_cfg3/033.png" width="128" height="128" alt="Sample of class dung beetle"><figcaption>dung beetle</figcaption></figure>
+  <figure><img src="cond_cfg3/034.png" width="128" height="128" alt="Sample of class dishwasher"><figcaption>dishwasher</figcaption></figure>
+  <figure><img src="cond_cfg3/035.png" width="128" height="128" alt="Sample of class turnstile"><figcaption>turnstile</figcaption></figure>
+  <figure><img src="cond_cfg3/036.png" width="128" height="128" alt="Sample of class hen-of-the-woods"><figcaption>hen-of-the-woods</figcaption></figure>
+  <figure><img src="cond_cfg3/037.png" width="128" height="128" alt="Sample of class black swan"><figcaption>black swan</figcaption></figure>
+  <figure><img src="cond_cfg3/038.png" width="128" height="128" alt="Sample of class paddlewheel"><figcaption>paddlewheel</figcaption></figure>
+  <figure><img src="cond_cfg3/039.png" width="128" height="128" alt="Sample of class recreational vehicle"><figcaption>recreational vehicle</figcaption></figure>
+  <figure><img src="cond_cfg3/040.png" width="128" height="128" alt="Sample of class Granny Smith"><figcaption>Granny Smith</figcaption></figure>
+  <figure><img src="cond_cfg3/041.png" width="128" height="128" alt="Sample of class ocarina"><figcaption>ocarina</figcaption></figure>
+  <figure><img src="cond_cfg3/042.png" width="128" height="128" alt="Sample of class iron"><figcaption>iron</figcaption></figure>
+  <figure><img src="cond_cfg3/043.png" width="128" height="128" alt="Sample of class geyser"><figcaption>geyser</figcaption></figure>
+  <figure><img src="cond_cfg3/044.png" width="128" height="128" alt="Sample of class little blue heron"><figcaption>little blue heron</figcaption></figure>
+  <figure><img src="cond_cfg3/045.png" width="128" height="128" alt="Sample of class agaric"><figcaption>agaric</figcaption></figure>
+  <figure><img src="cond_cfg3/046.png" width="128" height="128" alt="Sample of class mailbag"><figcaption>mailbag</figcaption></figure>
+  <figure><img src="cond_cfg3/047.png" width="128" height="128" alt="Sample of class pot"><figcaption>pot</figcaption></figure>
+</div>
+</main>
+</body>
+</html>

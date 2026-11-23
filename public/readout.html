@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Readout edits</title>
+<style>
+  body { margin: 0; padding: 20px 16px 40px; background: #090c12; color: #e8ecf3; font: 15px/1.5 system-ui, sans-serif; }
+  main { max-width: 860px; margin: 0 auto; }
+  h1 { font-size: 20px; margin: 0 0 6px; }
+  h2 { font-size: 16px; margin: 30px 0 4px; }
+  p { color: #a7b0c0; margin: 0 0 12px; }
+  code { color: #e8ecf3; }
+  button { font: inherit; font-weight: 600; padding: 10px 20px; border-radius: 999px; border: 0; background: hsl(192 86% 64%); color: #06222a; cursor: pointer; min-height: 44px; }
+  .msg { margin-left: 12px; color: hsl(150 60% 55%); }
+  pre { margin-top: 12px; padding: 14px; background: #0f141d; border: 1px solid rgba(255,255,255,0.13); border-radius: 12px; overflow-x: auto; font: 12.5px/1.45 ui-monospace, Menlo, Consolas, monospace; }
+  a { color: hsl(192 86% 64%); }
+</style>
+</head>
+<body>
+<main>
+<h1>Readout edits: recon variation + one regulariser term</h1>
+<p>Four small edits, all inside <code>train_step</code> except the last. Indentation is already correct for pasting in place. Afterwards re-run the <code>train_step</code> cell and the <code>torch.compile(make_train_step())</code> cell. The loss value is unchanged. <a href="/">Back to train-viz</a></p>
+
+<section>
+<h2>1. Monitoring block: add recon variation</h2>
+<p>Replace the whole <code># Monitoring only</code> block (the <code>with torch.no_grad():</code> that computes <code>clean_term</code>, <code>masked_term</code>, <code>laplacian_term</code>).</p>
+<button>Copy</button><span class="msg" role="status"></span>
+<pre>        # Monitoring only: raw losses under the existing chart keys.
+        with torch.no_grad():
+            clean_term = F.mse_loss(recon_clean, images)
+            masked_term = F.mse_loss(recon_masked.float(), images)
+
+            laplacian_term = F.mse_loss(
+                laplacian(recon_clean), laplacian(images),
+            )
+
+            # Variation across the batch, recon relative to real.
+            # ~0: decoder ignores z. Healthy runs climb to 0.8-0.9.
+            recon_div = (
+                recon_clean.std(0).mean()
+                / images.std(0).mean()
+            )
+</pre>
+</section>
+
+<section>
+<h2>2. One regulariser term</h2>
+<p>Replace the <code>ae_loss = ( view_term + swd_term + ... )</code> statement. Keep the four <code>*_term = weight * ...</code> lines above it.</p>
+<button>Copy</button><span class="msg" role="status"></span>
+<pre>        reg_term = (
+            swd_term + bwd_term + c_swd_term + t_swd_term
+        )
+
+        ae_loss = view_term + reg_term
+</pre>
+</section>
+
+<section>
+<h2>3. Return the two new values</h2>
+<p>Add these two lines inside the <code>return { ... }</code> dict, right after <code>"view_term": view_term.detach(),</code>. Leave the per-distance keys: the regulariser plots and the train-viz sink read them.</p>
+<button>Copy</button><span class="msg" role="status"></span>
+<pre>            "reg_term": reg_term.detach(),
+            "recon_div": recon_div.detach(),
+</pre>
+</section>
+
+<section>
+<h2>4. Readout columns</h2>
+<p>Replace the <code>readout = TrainingReadout(...)</code> call in the training-loop cell.</p>
+<button>Copy</button><span class="msg" role="status"></span>
+<pre>readout = TrainingReadout(
+    step_metrics={
+        "clean": "clean_term",
+        "laplacian": "laplacian_term",
+        "view": "view_term",
+        "reg": "reg_term",
+        "div": "recon_div",
+    },
+    report_every=report_every,
+    watch="test clean",
+    trend_epochs=5,
+)
+</pre>
+</section>
+
+<section>
+<h2>5. ImageNet notebook only: erase the reconstruction crops too</h2>
+<p>In commit 54b4cbb the real crop is blacked out where it leaves the image, but the reconstruction crops still use border clamping with no mask. Insert this in <code>train_step</code> between <code>recon_crops = crop_scale(...)</code> and <code>crop_clean, crop_masked = recon_crops.chunk(2, dim=0)</code>. Skip it if your running kernel already does this.</p>
+<button>Copy</button><span class="msg" role="status"></span>
+<pre>            # Erase the same out-of-image area as the real crop.
+            inside = (crop_grid.abs() &lt;= 1).all(-1)
+            inside = inside[:, None].to(recon_crops.dtype)
+            recon_crops = recon_crops * inside.repeat(2, 1, 1, 1)
+</pre>
+</section>
+</main>
+<script>
+  for (const section of document.querySelectorAll('section')) {
+    const pre = section.querySelector('pre');
+    const msg = section.querySelector('.msg');
+    section.querySelector('button').addEventListener('click', async () => {
+      const code = pre.textContent;
+      try { await navigator.clipboard.writeText(code); msg.textContent = 'Copied ' + (code.split('\n').length - 1) + ' lines'; }
+      catch (e) {
+        const r = document.createRange(); r.selectNodeContents(pre);
+        const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+        msg.textContent = 'Selected: press Ctrl+C (or Cmd+C) to copy';
+      }
+    });
+  }
+</script>
+</body>
+</html>

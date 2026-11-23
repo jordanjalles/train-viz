@@ -1,0 +1,601 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Training loop and seed plots</title>
+<style>
+  body { margin: 0; padding: 20px 16px 48px; background: #090c12; color: #e8ecf3; font: 16px/1.55 system-ui, sans-serif; }
+  main { max-width: 760px; margin: 0 auto; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  h2 { font-size: 16px; margin: 34px 0 6px; }
+  p, td, th, li { color: #a7b0c0; }
+  .lead { margin: 0 0 22px; }
+  code { color: #e8ecf3; font: 13px ui-monospace, Menlo, Consolas, monospace; background: rgba(255,255,255,0.06); padding: 1px 5px; border-radius: 5px; }
+  b { color: #e8ecf3; }
+  ol.steps { list-style: none; padding: 0; margin: 0; counter-reset: step; }
+  ol.steps > li { counter-increment: step; position: relative; padding: 14px 16px 14px 58px; margin: 0 0 10px; background: #121822; border: 1px solid rgba(255,255,255,0.09); border-radius: 14px; }
+  ol.steps > li::before { content: counter(step); position: absolute; left: 16px; top: 14px; width: 28px; height: 28px; border-radius: 50%; background: hsl(192 86% 64%); color: #06222a; font-weight: 700; display: grid; place-items: center; }
+  .where { display: block; font-size: 12.5px; color: #6b7482; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 2px; }
+  .do { color: #e8ecf3; }
+  button { font: inherit; font-size: 14px; font-weight: 600; padding: 8px 18px; border-radius: 999px; border: 0; background: hsl(192 86% 64%); color: #06222a; cursor: pointer; min-height: 40px; }
+  .copy { margin-top: 10px; }
+  .msg { margin-left: 10px; color: hsl(150 60% 55%); font-size: 14px; }
+  details { margin-top: 8px; }
+  summary { cursor: pointer; color: #6b7482; font-size: 13px; }
+  pre { margin: 8px 0 0; padding: 12px; background: #0b1018; border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; overflow-x: auto; font: 12.5px/1.45 ui-monospace, Menlo, Consolas, monospace; color: #e8ecf3; }
+  .result { margin-top: 10px; padding: 10px 12px; background: #0b1018; border-left: 3px solid hsl(150 60% 55%); border-radius: 6px; overflow-x: auto; white-space: pre; font: 12.5px/1.5 ui-monospace, Menlo, Consolas, monospace; color: #e8ecf3; }
+  .caution { margin-top: 10px; padding: 10px 12px; border-left: 3px solid #e3a13a; background: rgba(227,161,58,0.08); border-radius: 6px; color: #e8ecf3; font-size: 14.5px; }
+  .result-label { display: block; margin-top: 10px; font-size: 13px; color: #6b7482; }
+  table { border-collapse: collapse; width: 100%; margin: 4px 0; font-size: 15px; }
+  th, td { text-align: left; padding: 8px 12px 8px 0; border-bottom: 1px solid rgba(255,255,255,0.09); vertical-align: top; }
+  th { color: #e8ecf3; font-weight: 600; }
+  a { color: hsl(192 86% 64%); }
+  .small { font-size: 14.5px; }
+
+  .kind { font-size: 11px; font-weight: 600; padding: 1px 8px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.25); color: #a7b0c0; margin-left: 6px; text-transform: none; letter-spacing: 0; }
+</style>
+</head>
+<body>
+<main>
+<h1>Training loop, readouts and seed plots</h1>
+<p class="lead">Notebook: <code>ImageNet-Unify.ipynb</code>. Five cells for training, then seven one-line plot cells, in notebook order.</p>
+
+<h2>Before you start</h2>
+<p class="small">Your notebook has no <code>test_dataloader</code> yet. The loop runs without it and prints <code>test-loss: n/a</code>. To get a test
+loss, paste the validation loader from <a href="/unify_eval.html">the split-loss page</a> (its first block) below your train loader cell.</p>
+
+<h2>Training cells</h2>
+<ol class="steps">
+  <li><span class="where">Helpers <span class="kind">definition</span> · new cell below <code># get split losses (definitions only)</code></span>
+    <span class="do">Log metrics.</span>
+    <div class="copy">
+<button>Copy block 1</button><span class="msg" role="status"></span>
+<details><summary>Show the code (32 lines)</summary><pre>#log metrics (definitions only)
+from collections import defaultdict
+
+# Keep the logs if this cell is run again.
+if &quot;logs&quot; not in globals():
+    logs = defaultdict(list)       # one value per training step
+if &quot;eval_logs&quot; not in globals():
+    eval_logs = defaultdict(list)  # one value per evaluation
+
+
+def clear_logs():
+    logs.clear()
+    eval_logs.clear()
+
+
+def log_metrics(**metrics):
+    for name, value in metrics.items():
+        if value is None:
+            continue
+
+        if torch.is_tensor(value):
+            value = value.detach().item()
+
+        logs[name].append(value)
+
+
+def get_metrics_lists():
+    return {
+        name: history.copy()
+        for name, history in logs.items()
+        if history
+    }
+</pre></details>
+</div>
+  </li>
+  <li><span class="where">Helpers <span class="kind">definition</span> · new cell below <code>#log metrics</code></span>
+    <span class="do">Samplers and seed plots.</span>
+    <div class="copy">
+<button>Copy block 2</button><span class="msg" role="status"></span>
+<details><summary>Show the code (183 lines)</summary><pre># samplers and seed plots (definitions only)
+# t=0 is pure noise, t=1 is the clean image. The model predicts the
+# clean image, so the velocity is (x_pred - x) / (1 - t).
+import math
+
+
+def make_timesteps(steps=20, scheduler=&quot;linear&quot;, shift=1.0):
+    # steps + 1 rising times from 0 (noise) to 1 (image).
+    # shift &gt; 1 spends more steps at high noise.
+    u = torch.linspace(0, 1, steps + 1, dtype=torch.float64)
+
+    if scheduler == &quot;linear&quot;:
+        ts = u
+    elif scheduler == &quot;cosine&quot;:
+        ts = 0.5 * (1 - torch.cos(math.pi * u))
+    else:
+        raise ValueError(f&quot;Unknown scheduler: {scheduler}&quot;)
+
+    noise_level = 1 - ts
+    noise_level = shift * noise_level / (1 + (shift - 1) * noise_level)
+    ts = (1 - noise_level).float()
+    ts[0], ts[-1] = 0.0, 1.0
+    return ts.to(device)
+
+
+@torch.inference_mode()
+def denoise_seeds(
+    seeds, steps=20, sampler=&quot;euler&quot;, scheduler=&quot;linear&quot;,
+    shift=1.0, image_size=None, return_steps=False,
+):
+    # One image per seed. An image depends only on its own seed,
+    # not on the other seeds in the call. Samplers: euler, heun.
+    if sampler not in (&quot;euler&quot;, &quot;heun&quot;):
+        raise ValueError(f&quot;Unknown sampler: {sampler}&quot;)
+
+    size = image_size or IMAGE_SIZE
+    channels = model.un_embed.c
+    seeds = [int(seed) for seed in seeds]
+
+    x = torch.stack([
+        torch.randn(
+            (channels, size, size),
+            generator=torch.Generator(device=device).manual_seed(s),
+            device=device,
+        )
+        for s in seeds
+    ])
+    n = len(seeds)
+    ts = make_timesteps(steps, scheduler, shift)
+
+    def predict(x, t):
+        with torch.autocast(
+            device_type=&quot;cuda&quot;,
+            dtype=torch.bfloat16,
+        ):
+            return model(x, t.expand(n)).float()
+
+    was_training = model.training
+    model.eval()
+    trace = []
+    try:
+        for t, t_next in zip(ts[:-1], ts[1:]):
+            dt = t_next - t
+            x_pred = predict(x, t)
+            v = (x_pred - x) / (1 - t)
+
+            if return_steps:
+                trace.append((float(t), x, x_pred))
+
+            if sampler == &quot;heun&quot; and t_next &lt; 1:
+                x_euler = x + dt * v
+                v_next = (
+                    (predict(x_euler, t_next) - x_euler)
+                    / (1 - t_next)
+                )
+                x = x + dt * 0.5 * (v + v_next)
+            else:
+                # The last step lands exactly on the prediction.
+                x = x + dt * v
+    finally:
+        model.train(was_training)
+
+    x = x.clamp(0, 1)
+    return (x, trace) if return_steps else x
+
+
+def denoise_seed(seed, steps=20, sampler=&quot;euler&quot;, **kwargs):
+    return denoise_seeds([seed], steps, sampler, **kwargs)
+
+
+def _show(ax, image, title=None):
+    ax.imshow(
+        image.detach().float().cpu().permute(1, 2, 0).clamp(0, 1)
+    )
+    ax.axis(&quot;off&quot;)
+    if title is not None:
+        ax.set_title(title, fontsize=9)
+
+
+def plot_seeds(
+    seeds=range(6), steps=20, cols=3, sampler=&quot;euler&quot;,
+    title=None, **kwargs,
+):
+    seeds = [int(seed) for seed in seeds]
+    if not seeds:
+        return
+    if cols &lt; 1:
+        raise ValueError(&quot;cols must be at least 1&quot;)
+
+    images = denoise_seeds(seeds, steps, sampler, **kwargs)
+
+    cols = min(cols, len(seeds))
+    rows = math.ceil(len(seeds) / cols)
+    fig, axes = plt.subplots(
+        rows, cols,
+        figsize=(3 * cols, 3 * rows),
+        squeeze=False,
+    )
+    for ax in axes.flat:
+        ax.axis(&quot;off&quot;)
+    for seed, image, ax in zip(seeds, images, axes.flat):
+        _show(ax, image, f&quot;seed {seed}&quot;)
+
+    if title is not None:
+        fig.suptitle(title)
+    plt.tight_layout()
+    plt.show()
+
+
+def plot_seed_trajectory(seed=1, steps=20, show=6, sampler=&quot;euler&quot;):
+    # Top row: the noisy image x at some steps.
+    # Bottom row: the clean image the model predicts from it.
+    final, trace = denoise_seeds(
+        [seed], steps, sampler, return_steps=True,
+    )
+    picks = sorted({
+        round(i * (len(trace) - 1) / max(show - 1, 1))
+        for i in range(show)
+    })
+
+    fig, axes = plt.subplots(
+        2, len(picks) + 1,
+        figsize=(2.4 * (len(picks) + 1), 5),
+        squeeze=False,
+    )
+    for col, i in enumerate(picks):
+        t, x, x_pred = trace[i]
+        _show(axes[0, col], x[0], f&quot;x at t={t:.2f}&quot;)
+        _show(axes[1, col], x_pred[0], &quot;prediction&quot;)
+    _show(axes[0, -1], final[0], &quot;final&quot;)
+    axes[1, -1].axis(&quot;off&quot;)
+
+    fig.suptitle(f&quot;seed {seed} · {steps} {sampler} steps&quot;)
+    plt.tight_layout()
+    plt.show()
+
+
+def compare_samplers(
+    seeds=range(3),
+    samplers=(&quot;euler&quot;, &quot;heun&quot;),
+    step_counts=(10, 20, 50),
+):
+    # One row per seed, one column per sampler and step count.
+    seeds = [int(seed) for seed in seeds]
+    settings = [
+        (sampler, steps)
+        for sampler in samplers
+        for steps in step_counts
+    ]
+
+    fig, axes = plt.subplots(
+        len(seeds), len(settings),
+        figsize=(2.4 * len(settings), 2.4 * len(seeds)),
+        squeeze=False,
+    )
+    for col, (sampler, steps) in enumerate(settings):
+        images = denoise_seeds(seeds, steps, sampler)
+        for row, image in enumerate(images):
+            title = f&quot;{sampler} {steps}&quot; if row == 0 else None
+            _show(axes[row, col], image, title)
+
+    plt.tight_layout()
+    plt.show()
+</pre></details>
+</div>
+  </li>
+  <li><span class="where">Training <span class="kind">definition</span> · new cell below <code>#make and compile the training steps</code></span>
+    <span class="do">Training readouts.</span>
+    <div class="copy">
+<button>Copy block 3</button><span class="msg" role="status"></span>
+<details><summary>Show the code (98 lines)</summary><pre># training readouts (definitions only)
+
+class TrainReadout:
+    # Speed and loss lines for the training loop. Holds only the
+    # clock and the counts since its last line.
+    def __init__(self, batches_per_epoch):
+        self.batches_per_epoch = batches_per_epoch
+        self.run_start = time.perf_counter()
+        self.reset()
+
+    def reset(self):
+        self.steps = 0
+        self.samples = 0
+        self.start = time.perf_counter()
+
+    def tick(self, batch_size):
+        self.steps += 1
+        self.samples += batch_size
+
+    def report(self, step, epoch):
+        if torch.cuda.is_available():
+            torch.cuda.synchronize()
+
+        elapsed = time.perf_counter() - self.start
+        sec_per_step = elapsed / max(self.steps, 1)
+        recent = logs[&quot;loss&quot;][-self.steps:]
+        total = int(time.perf_counter() - self.run_start)
+
+        print(
+            f&quot;step {step:,} | epoch {epoch + 1} | &quot;
+            f&quot;{sec_per_step * 1000:.0f} ms/step | &quot;
+            f&quot;{self.samples / elapsed:.1f} img/s | &quot;
+            f&quot;{self.batches_per_epoch * sec_per_step / 60:.1f}&quot;
+            f&quot; min/epoch | &quot;
+            f&quot;loss {sum(recent) / len(recent):.5f} | &quot;
+            f&quot;lr {optimizer.param_groups[0][&#x27;lr&#x27;]:.1e} | &quot;
+            f&quot;{total // 3600}:{total % 3600 // 60:02d}&quot;
+            f&quot;:{total % 60:02d}&quot;
+        )
+        self.reset()
+
+
+def ensure_loader_alive(loader):
+    # Stopping the kernel also stops the loader&#x27;s worker processes.
+    # A loader with persistent workers then fails on its next use
+    # with &quot;DataLoader worker exited unexpectedly&quot;. Drop the dead
+    # workers so the next loop starts new ones.
+    iterator = getattr(loader, &quot;_iterator&quot;, None)
+    if iterator is None:
+        return
+
+    workers = getattr(iterator, &quot;_workers&quot;, [])
+    if all(worker.is_alive() for worker in workers):
+        return
+
+    try:
+        iterator._shutdown_workers()
+    except Exception:
+        pass
+    loader._iterator = None
+    print(&quot;data loader: workers had stopped, starting new ones&quot;)
+
+
+def evaluate(step, label=&quot;EVAL&quot;):
+    # Split losses on fixed images, t and noise. Logged and printed.
+    train_loss = get_split_loss(&quot;train&quot;).item()
+    has_test = &quot;test_dataloader&quot; in globals()
+    test_loss = get_split_loss(&quot;test&quot;).item() if has_test else None
+
+    eval_logs[&quot;step&quot;].append(step)
+    eval_logs[&quot;train_loss&quot;].append(train_loss)
+    eval_logs[&quot;test_loss&quot;].append(test_loss)
+
+    if has_test:
+        # earlier evaluations may have run without a test loader
+        best, best_step = min(
+            (loss, at)
+            for loss, at in zip(
+                eval_logs[&quot;test_loss&quot;], eval_logs[&quot;step&quot;],
+            )
+            if loss is not None
+        )
+        tail = (
+            f&quot;test-loss: {test_loss:.5f} | &quot;
+            f&quot;best test {best:.5f} at step {best_step:,}&quot;
+        )
+    else:
+        tail = &quot;test-loss: n/a (no test_dataloader)&quot;
+
+    print(
+        f&quot;{label} step {step:,} | &quot;
+        f&quot;train-loss: {train_loss:.5f} | {tail}&quot;
+    )
+
+
+def preview(step, seeds=range(6), steps=20):
+    # Samples from fixed seeds, so previews are comparable.
+    plot_seeds(seeds, steps=steps, title=f&quot;step {step:,}&quot;)
+</pre></details>
+</div>
+  </li>
+  <li><span class="where">Training <span class="kind">action</span> · replaces the cell <code>## AE EXPERIMENT TRAINING LOOP ##</code></span>
+    <span class="do">Main training loop.</span>
+    <span class="result-label">You should see lines like these (numbers will differ):</span>
+    <div class="result">START step 0 | train-loss: 8.64749 | test-loss: 6.00390 | best test 6.00390 at step 0
+step 500 | epoch 1 | 142 ms/step | 451.0 img/s | 47.4 min/epoch | loss 1.23456 | lr 1.0e-04 | 0:01:11
+EVAL step 2,000 | train-loss: 1.10321 | test-loss: 1.11876 | best test 1.11876 at step 2,000</div>
+    <div class="copy">
+<button>Copy block 4</button><span class="msg" role="status"></span>
+<details><summary>Show the code (39 lines)</summary><pre># MAIN TRAINING LOOP
+######################################################################
+num_epochs = 20
+report_every = 500      # steps between speed / loss lines
+eval_every = 2_000      # steps between split losses
+preview_every = 10_000  # steps between sample previews
+
+model.train()
+ensure_loader_alive(train_dataloader)
+batches_per_epoch = len(train_dataloader)
+readout = TrainReadout(batches_per_epoch)
+
+evaluate(len(logs[&quot;loss&quot;]), label=&quot;START&quot;)
+
+for epoch in range(num_epochs):
+
+    for batch_step, (images, _) in enumerate(train_dataloader):
+
+        metrics = train_step(images, optimizer)
+
+        log_metrics(loss=metrics[&quot;loss&quot;])
+        readout.tick(images.shape[0])
+        step = len(logs[&quot;loss&quot;])
+
+        if step % report_every == 0:
+            readout.report(step, epoch)
+
+        if step % eval_every == 0:
+            evaluate(step)
+            readout.reset()
+
+        if step % preview_every == 0:
+            preview(step)
+            readout.reset()
+
+    print(&quot;-&quot; * 62)
+    evaluate(len(logs[&quot;loss&quot;]), label=f&quot;EPOCH {epoch + 1}&quot;)
+    print(&quot;-&quot; * 62)
+    readout.reset()
+</pre></details>
+</div>
+  </li>
+  <li><span class="where">After training <span class="kind">definition</span> · replaces the cell <code>history = get_metrics_lists()</code></span>
+    <span class="do">History plots.</span>
+    <div class="copy">
+<button>Copy block 5</button><span class="msg" role="status"></span>
+<details><summary>Show the code (45 lines)</summary><pre># history (definitions only)
+
+def print_history():
+    steps = len(logs[&quot;loss&quot;])
+    steps_per_epoch = len(train_dataloader)
+
+    print(f&quot;steps:           {steps:,}&quot;)
+    print(f&quot;steps / epoch:   {steps_per_epoch:,}&quot;)
+    print(f&quot;epochs trained:  {steps / steps_per_epoch:.2f}&quot;)
+    if eval_logs[&quot;step&quot;]:
+        print(f&quot;evaluations:     {len(eval_logs[&#x27;step&#x27;]):,}&quot;)
+
+
+def plot_loss_history(window=200, start=0):
+    # Train-step loss as a running mean, with the split losses.
+    loss = torch.tensor(logs[&quot;loss&quot;][start:], dtype=torch.float32)
+    if len(loss) &lt; 2:
+        print(&quot;not enough steps to plot&quot;)
+        return
+
+    window = max(1, min(window, len(loss)))
+    smooth = loss.unfold(0, window, 1).mean(-1)
+    xs = torch.arange(len(smooth)) + start + window
+
+    plt.figure(figsize=(10, 4))
+    plt.plot(xs, smooth, label=f&quot;train step (mean of {window})&quot;)
+
+    for name in (&quot;train_loss&quot;, &quot;test_loss&quot;):
+        points = [
+            (at, value)
+            for at, value in zip(eval_logs[&quot;step&quot;], eval_logs[name])
+            if at &gt;= start and value is not None
+        ]
+        if points:
+            plt.plot(
+                *zip(*points), &quot;o-&quot;, ms=4,
+                label=name.replace(&quot;_&quot;, &quot; &quot;) + &quot; (fixed t, noise)&quot;,
+            )
+
+    plt.yscale(&quot;log&quot;)
+    plt.xlabel(&quot;step&quot;)
+    plt.ylabel(&quot;loss&quot;)
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
+</pre></details>
+</div>
+  </li>
+</ol>
+
+<h2>Plot cells</h2>
+<p class="small">Each block is one cell. They need a model that has trained for a while to show anything but noise.</p>
+<ol class="steps">
+  <li><span class="where">After training <span class="kind">action</span> · new cell below the history definitions</span>
+    <span class="do">History.</span>
+    <div class="copy">
+<button>Copy block 6A</button><span class="msg" role="status"></span>
+<details><summary>Show the code (2 lines)</summary><pre>print_history()
+plot_loss_history(window=200)
+</pre></details>
+</div>
+  </li>
+  <li><span class="where">After training <span class="kind">action</span> · replaces the cell <code>render_reconstruction(masked=False, split=&#x27;train&#x27;);</code></span>
+    <span class="do">Seed plots.</span>
+    <div class="copy">
+<button>Copy block 6B</button><span class="msg" role="status"></span>
+<details><summary>Show the code (1 lines)</summary><pre>plot_seeds(steps=20, sampler=&quot;euler&quot;)
+</pre></details>
+</div>
+  </li>
+  <li><span class="where">After training <span class="kind">action</span> · replaces the cell <code>render_reconstruction(masked=True);</code></span>
+    <span class="do">Seed plots.</span>
+    <div class="copy">
+<button>Copy block 6C</button><span class="msg" role="status"></span>
+<details><summary>Show the code (1 lines)</summary><pre>plot_seeds(sampler=&quot;heun&quot;)
+</pre></details>
+</div>
+  </li>
+  <li><span class="where">After training <span class="kind">action</span> · new cell</span>
+    <span class="do">Seed plots.</span>
+    <div class="copy">
+<button>Copy block 6D</button><span class="msg" role="status"></span>
+<details><summary>Show the code (1 lines)</summary><pre>plot_seeds(torch.randint(6, 90000, (6,)))
+</pre></details>
+</div>
+  </li>
+  <li><span class="where">After training <span class="kind">action</span> · new cell</span>
+    <span class="do">Seed plots.</span>
+    <div class="copy">
+<button>Copy block 6E</button><span class="msg" role="status"></span>
+<details><summary>Show the code (3 lines)</summary><pre>plot_seeds(
+    torch.randint(6, 90000, (30,)).tolist(), cols=6, sampler=&quot;heun&quot;,
+)
+</pre></details>
+</div>
+  </li>
+  <li><span class="where">After training <span class="kind">action</span> · new cell</span>
+    <span class="do">Seed plots.</span>
+    <div class="copy">
+<button>Copy block 6F</button><span class="msg" role="status"></span>
+<details><summary>Show the code (1 lines)</summary><pre>plot_seed_trajectory(seed=1, steps=20)
+</pre></details>
+</div>
+  </li>
+  <li><span class="where">After training <span class="kind">action</span> · new cell</span>
+    <span class="do">Seed plots.</span>
+    <div class="copy">
+<button>Copy block 6G</button><span class="msg" role="status"></span>
+<details><summary>Show the code (5 lines)</summary><pre>compare_samplers(
+    seeds=range(3),
+    samplers=(&quot;euler&quot;, &quot;heun&quot;),
+    step_counts=(10, 20, 50),
+)
+</pre></details>
+</div>
+  </li>
+</ol>
+
+<h2>What the readouts mean</h2>
+<table>
+  <tr><th>Line</th><th>When</th><th>What it shows</th></tr>
+  <tr><td><code>step …</code></td><td>every <code>report_every</code> steps</td><td>Speed over those steps, the mean train-step loss over them, the learning rate and the time since the loop started.</td></tr>
+  <tr><td><code>EVAL …</code></td><td>every <code>eval_every</code> steps</td><td><code>get_split_loss</code> on fixed images with fixed <code>t</code> and noise. The best test loss so far and its step.</td></tr>
+  <tr><td>image grid</td><td>every <code>preview_every</code> steps</td><td>Samples from seeds 0 to 5. The seeds are fixed, so one grid compares with the next.</td></tr>
+  <tr><td><code>EPOCH …</code></td><td>end of each epoch</td><td>The same evaluation as <code>EVAL</code>.</td></tr>
+</table>
+
+<h2>Good to know</h2>
+<ul class="small">
+  <li><b>Sampling direction.</b> In this notebook <code>t=0</code> is noise and <code>t=1</code> is the image, the reverse of the latent flow
+      notebook. The samplers go from 0 to 1. The model predicts the clean image, so the last step lands exactly on its prediction.</li>
+  <li><b>Sampling is always dense.</b> The samplers put the model in eval mode, so the sparse middle is off.</li>
+  <li><b>Other resolutions.</b> <code>plot_seeds(image_size=256)</code> samples at another size, since the model has no fixed grid.</li>
+  <li><b>The step count continues.</b> Stopping the loop and running the cell again goes on from the logged steps. For a new run after
+      <code>init_models()</code>, run <code>clear_logs()</code> first, or the new model's steps add to the old ones.</li>
+  <li><b>The split loss uses uniform <code>t</code>.</b> Your train step now draws <code>t</code> from a logit-normal. So <code>train-loss</code> and
+      the step loss are not the same number, also on the same images. The split loss is a fixed benchmark over all noise levels.</li>
+  <li><b>The log cell is safe to run again.</b> It keeps the logs if they exist.</li>
+</ul>
+
+<p class="small"><b>Tested</b> on the CPU with your model, train step and split-loss cells, a tiny configuration and fake loaders. A model that
+always predicts one image is sampled to exactly that image by both samplers. The same seed gives the same image, alone or in a batch. The loop
+logs every step and prints each kind of line. It has not run on a GPU or with the compiled step.</p>
+
+<p class="small"><a href="/unify_eval.html">Split loss and micro-batch cells</a> · <a href="/unify_core.html">Unified core transformer</a> · <a href="/">Back to train-viz</a></p>
+</main>
+<script>
+  for (const box of document.querySelectorAll('.copy')) {
+    const pre = box.querySelector('pre');
+    const msg = box.querySelector('.msg');
+    box.querySelector('button').addEventListener('click', async () => {
+      const code = pre.textContent;
+      try { await navigator.clipboard.writeText(code); msg.textContent = 'Copied ' + (code.split('\n').length - 1) + ' lines'; }
+      catch (e) {
+        box.querySelector('details').open = true;
+        const r = document.createRange(); r.selectNodeContents(pre);
+        const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+        msg.textContent = 'Selected: press Ctrl+C (or Cmd+C) to copy';
+      }
+    });
+  }
+</script>
+</body>
+</html>

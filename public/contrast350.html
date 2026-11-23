@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Black and white pixels</title>
+<style>
+  :root { --bg: #090c12; --panel: #0f141d; --line: rgba(255,255,255,0.13); --ink: #e8ecf3; --ink2: #a7b0c0; --accent: hsl(192 86% 64%); --on-accent: #06222a; }
+  @media (prefers-color-scheme: light) {
+    :root { --bg: #f5f6f8; --panel: #ffffff; --line: rgba(0,0,0,0.14); --ink: #141821; --ink2: #4c5566; --accent: hsl(192 80% 32%); --on-accent: #ffffff; }
+  }
+  body { margin: 0; padding: 20px 16px 48px; background: var(--bg); color: var(--ink); font: 15px/1.5 system-ui, sans-serif; }
+  main { max-width: 1080px; margin: 0 auto; }
+  h1 { font-size: 20px; margin: 0 0 6px; }
+  h2 { font-size: 16px; margin: 30px 0 4px; }
+  p { color: var(--ink2); margin: 0 0 12px; max-width: 78ch; }
+  a { color: var(--accent); }
+  .bar { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 10px; }
+  button { font: inherit; font-weight: 600; padding: 10px 18px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); cursor: pointer; min-height: 44px; }
+  button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); border-color: transparent; }
+  figure { margin: 0 0 8px; }
+  img { display: block; width: 100%; height: auto; border-radius: 8px; border: 1px solid var(--line); background: #fff; image-rendering: auto; }
+  figcaption { color: var(--ink2); font-size: 14px; margin-top: 6px; }
+  figcaption b { color: var(--ink); }
+  table { border-collapse: collapse; margin: 6px 0 4px; font-size: 14px; font-variant-numeric: tabular-nums; }
+  th, td { text-align: right; padding: 5px 12px; border-bottom: 1px solid var(--line); }
+  th:first-child, td:first-child { text-align: left; }
+  th { color: var(--ink2); font-weight: 600; }
+  .wrap { overflow-x: auto; }
+  kbd { font: 12.5px ui-monospace, Menlo, Consolas, monospace; padding: 1px 6px; border: 1px solid var(--line); border-radius: 5px; }
+</style>
+</head>
+<body>
+<main>
+<h1>Step 350,000. Black and white pixels: plain sampler against the corrected samplers</h1>
+<p>Model: the 100M run with XM transport, EMA weights, step 350,000, 16 Euler steps.
+Each sample grid shows the same 48 seeds in the same positions, so you can compare image by image.
+The real grid shows 48 validation images. <a href="contrast.html">Step 200,000</a> · <a href="/">Back to train-viz</a></p>
+
+<h2>Flip in place</h2>
+<p>Press a button or the keys <kbd>1</kbd> to <kbd>5</kbd>. The grid changes in the same position.</p>
+<div class="bar" role="group" aria-label="Grid to show">
+  <button type="button" data-k="plain" aria-pressed="true">1 Plain sampler</button>
+  <button type="button" data-k="cap" aria-pressed="false">2 Spread capped</button>
+  <button type="button" data-k="dc05" aria-pressed="false">3 Noise mean × 0.5</button>
+  <button type="button" data-k="dc0" aria-pressed="false">4 Noise mean × 0</button>
+  <button type="button" data-k="real" aria-pressed="false">5 Real images</button>
+</div>
+<figure>
+  <img id="flip" src="contrast350/plain.png" alt="Sample grid: plain sampler" width="1052" height="788">
+  <figcaption id="flipcap" aria-live="polite"></figcaption>
+</figure>
+
+<h2>Scores</h2>
+<div class="wrap">
+<table>
+  <tr><th>Setting</th><th>FID</th><th>KID × 1000</th><th>fd_ae_z</th><th>Spread between images</th><th>Black pixels</th><th>White pixels</th></tr>
+  <tr><td>Real images</td><td></td><td></td><td></td><td>0.137</td><td>3.2%</td><td>1.0%</td></tr>
+  <tr><td>Plain sampler</td><td>104.73</td><td>49.5</td><td>531</td><td>0.236</td><td>33.6%</td><td>4.1%</td></tr>
+  <tr><td>Spread capped at 0.137, from step 2</td><td>93.01</td><td>55.0</td><td>414</td><td>0.138</td><td>8.0%</td><td>0.8%</td></tr>
+  <tr><td>Noise mean × 0.5</td><td>92.82</td><td>53.5</td><td>472</td><td>0.154</td><td>25.4%</td><td>1.8%</td></tr>
+  <tr><td>Noise mean × 0</td><td>94.41</td><td>62.9</td><td>472</td><td>0.092</td><td>19.6%</td><td>1.4%</td></tr>
+</table>
+</div>
+<p>The scores come from 10,000 samples. Lower is better for FID, KID and fd_ae_z.
+"Spread between images" is the standard deviation of the mean brightness of the images.
+A black pixel is below 0.02. A white pixel is above 0.98.</p>
+
+<h2>All five grids</h2>
+<figure>
+  <img src="contrast350/real.png" alt="48 real validation images" width="1052" height="788" loading="lazy">
+  <figcaption><b>Real images.</b> Spread between images 0.137, black 3.2%, white 1.0%.</figcaption>
+</figure>
+<figure>
+  <img src="contrast350/plain.png" alt="Samples of the plain sampler" width="1052" height="788" loading="lazy">
+  <figcaption><b>Plain sampler.</b> FID 104.73, KID 49.5, fd_ae_z 531. Spread 0.236, black 33.6%, white 4.1%.</figcaption>
+</figure>
+<figure>
+  <img src="contrast350/cap.png" alt="Samples with the spread of the image means capped" width="1052" height="788" loading="lazy">
+  <figcaption><b>Spread capped at 0.137, from sampler step 2.</b> FID 93.01, KID 55.0, fd_ae_z 414. Spread 0.138, black 8.0%, white 0.8%.
+  From step 2 on, the sampler moves each predicted image toward the mean brightness of the batch.</figcaption>
+</figure>
+<figure>
+  <img src="contrast350/dc05.png" alt="Samples with the mean of the starting noise halved" width="1052" height="788" loading="lazy">
+  <figcaption><b>Noise mean × 0.5.</b> FID 92.82, KID 53.5, fd_ae_z 472. Spread 0.154, black 25.4%, white 1.8%.
+  The sampler halves the mean of each starting noise sample. Nothing else changes.</figcaption>
+</figure>
+<figure>
+  <img src="contrast350/dc0.png" alt="Samples with the mean of the starting noise removed" width="1052" height="788" loading="lazy">
+  <figcaption><b>Noise mean × 0.</b> FID 94.41, KID 62.9, fd_ae_z 472. Spread 0.092, black 19.6%, white 1.4%.
+  The sampler removes the mean of each starting noise sample. Nothing else changes.</figcaption>
+</figure>
+</main>
+<script>
+const CAP = {
+  plain: 'Plain sampler. FID 104.73, KID 49.5, fd_ae_z 531. Spread 0.236, black 33.6%, white 4.1%.',
+  cap: 'Spread capped at 0.137, from step 2. FID 93.01, KID 55.0, fd_ae_z 414. Spread 0.138, black 8.0%, white 0.8%.',
+  dc05: 'Noise mean × 0.5. FID 92.82, KID 53.5, fd_ae_z 472. Spread 0.154, black 25.4%, white 1.8%.',
+  dc0: 'Noise mean × 0. FID 94.41, KID 62.9, fd_ae_z 472. Spread 0.092, black 19.6%, white 1.4%.',
+  real: 'Real validation images. Spread 0.137, black 3.2%, white 1.0%. These are not the same positions as the samples.',
+};
+const img = document.getElementById('flip'), cap = document.getElementById('flipcap');
+const buttons = [...document.querySelectorAll('button[data-k]')];
+for (const k of Object.keys(CAP)) new Image().src = `contrast350/${k}.png`;   // load all five, so a flip is instant
+function show(k) {
+  img.src = `contrast350/${k}.png`;
+  img.alt = CAP[k];
+  cap.textContent = CAP[k];
+  for (const b of buttons) b.setAttribute('aria-pressed', String(b.dataset.k === k));
+}
+for (const b of buttons) b.addEventListener('click', () => show(b.dataset.k));
+document.addEventListener('keydown', (e) => { const b = buttons[Number(e.key) - 1]; if (b && !e.metaKey && !e.ctrlKey && !e.altKey) show(b.dataset.k); });
+show('plain');
+</script>
+</body>
+</html>

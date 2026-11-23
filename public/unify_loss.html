@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Split loss on the train-step scale</title>
+<style>
+  body { margin: 0; padding: 20px 16px 48px; background: #090c12; color: #e8ecf3; font: 16px/1.55 system-ui, sans-serif; }
+  main { max-width: 760px; margin: 0 auto; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  h2 { font-size: 16px; margin: 34px 0 6px; }
+  p, td, th, li { color: #a7b0c0; }
+  .lead { margin: 0 0 22px; }
+  code { color: #e8ecf3; font: 13px ui-monospace, Menlo, Consolas, monospace; background: rgba(255,255,255,0.06); padding: 1px 5px; border-radius: 5px; }
+  b { color: #e8ecf3; }
+  ol.steps { list-style: none; padding: 0; margin: 0; counter-reset: step; }
+  ol.steps > li { counter-increment: step; position: relative; padding: 14px 16px 14px 58px; margin: 0 0 10px; background: #121822; border: 1px solid rgba(255,255,255,0.09); border-radius: 14px; }
+  ol.steps > li::before { content: counter(step); position: absolute; left: 16px; top: 14px; width: 28px; height: 28px; border-radius: 50%; background: hsl(192 86% 64%); color: #06222a; font-weight: 700; display: grid; place-items: center; }
+  .where { display: block; font-size: 12.5px; color: #6b7482; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 2px; }
+  .do { color: #e8ecf3; }
+  button { font: inherit; font-size: 14px; font-weight: 600; padding: 8px 18px; border-radius: 999px; border: 0; background: hsl(192 86% 64%); color: #06222a; cursor: pointer; min-height: 40px; }
+  .copy { margin-top: 10px; }
+  .msg { margin-left: 10px; color: hsl(150 60% 55%); font-size: 14px; }
+  details { margin-top: 8px; }
+  summary { cursor: pointer; color: #6b7482; font-size: 13px; }
+  pre { margin: 8px 0 0; padding: 12px; background: #0b1018; border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; overflow-x: auto; font: 12.5px/1.45 ui-monospace, Menlo, Consolas, monospace; color: #e8ecf3; }
+  .result { margin-top: 10px; padding: 10px 12px; background: #0b1018; border-left: 3px solid hsl(150 60% 55%); border-radius: 6px; overflow-x: auto; white-space: pre; font: 12.5px/1.5 ui-monospace, Menlo, Consolas, monospace; color: #e8ecf3; }
+  .caution { margin-top: 10px; padding: 10px 12px; border-left: 3px solid #e3a13a; background: rgba(227,161,58,0.08); border-radius: 6px; color: #e8ecf3; font-size: 14.5px; }
+  .result-label { display: block; margin-top: 10px; font-size: 13px; color: #6b7482; }
+  table { border-collapse: collapse; width: 100%; margin: 4px 0; font-size: 15px; }
+  th, td { text-align: left; padding: 8px 12px 8px 0; border-bottom: 1px solid rgba(255,255,255,0.09); vertical-align: top; }
+  th { color: #e8ecf3; font-weight: 600; }
+  a { color: hsl(192 86% 64%); }
+  .small { font-size: 14.5px; }
+
+  .swap { display: grid; gap: 4px; margin-top: 8px; font: 12.5px ui-monospace, Menlo, Consolas, monospace; }
+  .swap span { padding: 5px 9px; border-radius: 8px; background: #0b1018; border: 1px solid rgba(255,255,255,0.1); overflow-x: auto; white-space: pre; }
+  .swap .old { color: #e66767; }
+  .swap .new { color: hsl(150 60% 55%); }
+</style>
+</head>
+<body>
+<main>
+<h1>Put train-loss and test-loss on the train-step scale</h1>
+<p class="lead">Notebook: <code>ImageNet-Unify.ipynb</code>. Six steps. You do not need to restart the kernel or the model.</p>
+
+<h2>Why they were far apart</h2>
+<p class="small">The split loss drew <code>t</code> uniformly. Your train step draws it from a logit-normal that almost never gets near
+<code>t = 1</code>. The loss divides by <code>(1 - t)</code>, so the few uniform samples near 1 count up to 400 times more and decide the
+average. In my test, the 5% of images with the largest loss carried 55% of the split loss, and the split loss was 12 times the train-step
+loss on the same model. With <code>t</code> drawn the same way, it is 0.95 times.</p>
+
+<ol class="steps">
+  <li><span class="where">First cell (hyperparameters)</span>
+    <span class="do">Paste these two settings below the line <code>beta2 = 0.99</code>. Run the cell.</span>
+    <div class="copy">
+<button>Copy the two settings</button><span class="msg" role="status"></span>
+<details><summary>Show the code (3 lines)</summary><pre># time sampling of the train step (logit-normal)
+t_logit_mean = -0.8
+t_logit_std = 0.8
+</pre></details>
+</div>
+  </li>
+  <li><span class="where">Cell <code>################## Training Step Methods</code></span>
+    <span class="do">Change one line, so the train step uses the two settings. Run the cell.</span>
+    <div class="swap"><span class="old">        ) * 0.8 - 0.8</span><span class="new">        ) * t_logit_std + t_logit_mean</span></div>
+  </li>
+  <li><span class="where">Cell <code>#make and compile the training steps</code></span>
+    <span class="do">Run it again. The model and its weights are not touched.</span>
+  </li>
+  <li><span class="where">Cell <code># get split losses (definitions only)</code></span>
+    <span class="do">Replace the whole cell with this. Run the cell.</span>
+    <div class="copy">
+<button>Copy the split-loss cell</button><span class="msg" role="status"></span>
+<details><summary>Show the code (92 lines)</summary><pre># get split losses (definitions only)
+
+def sample_train_t(B, generator=None):
+    # The time distribution of train_step: logit-normal.
+    # t_logit_mean and t_logit_std are set in the first cell and
+    # are the same numbers train_step uses.
+    u = torch.randn(
+        B, device=device, dtype=torch.float32, generator=generator,
+    ) * t_logit_std + t_logit_mean
+    return torch.sigmoid(u)
+
+
+def x_pred_v_loss(images, t, noise):
+    # The train step&#x27;s loss for given t and noise, one value per
+    # image. Keep this in step with train_step.
+    t_img = t[:, None, None, None]
+
+    noised_images = (
+        t_img * images
+        + (1.0 - t_img) * noise
+    )
+
+    with torch.autocast(
+        device_type=&quot;cuda&quot;,
+        dtype=torch.bfloat16,
+    ):
+        x_pred = model(noised_images, t)
+
+    # JiT x-prediction parameterized as a v-loss.
+    denom = (1.0 - t_img).clamp_min(0.05)
+
+    v_pred = (x_pred.float() - noised_images) / denom
+    v_target = (images - noised_images) / denom
+
+    return (v_pred - v_target).square().mean((1, 2, 3))
+
+
+def get_eval_batches(split, n_batches=20):
+    # The first n_batches of a split, loaded once and kept on the
+    # CPU. Every later call reuses the same images.
+    cache = get_eval_batches.__dict__.setdefault(&quot;cache&quot;, {})
+
+    if split == &quot;micro&quot;:
+        return [fixed_micro_batch]
+
+    if split not in (&quot;train&quot;, &quot;test&quot;):
+        raise ValueError(&quot;split must be &#x27;train&#x27;, &#x27;test&#x27; or &#x27;micro&#x27;&quot;)
+
+    if len(cache.get(split, [])) &lt; n_batches:
+        loader = (
+            train_dataloader if split == &quot;train&quot;
+            else test_dataloader
+        )
+        batches = []
+        for i, (images, _) in enumerate(loader):
+            if i &gt;= n_batches:
+                break
+            batches.append(images.clone())
+        cache[split] = batches
+
+    return cache[split][:n_batches]
+
+
+@torch.no_grad()
+def get_split_loss(split, n_batches=20, seed=0):
+    # Mean train-step loss on fixed images with fixed t and noise,
+    # so two calls differ only by the model&#x27;s weights.
+    # t is drawn as in train_step (sample_train_t), so this number
+    # is on the same scale as the train-step loss.
+    # The model is in eval mode here: the sparse middle is off.
+    was_training = model.training
+    model.eval()
+
+    rng = torch.Generator(device=device).manual_seed(seed)
+    losses = []
+
+    try:
+        for images in get_eval_batches(split, n_batches):
+            images = images.to(device, non_blocking=True)
+            B = images.shape[0]
+
+            t = sample_train_t(B, generator=rng)
+            noise = torch.randn(
+                images.shape, device=device, generator=rng,
+            )
+
+            losses.append(x_pred_v_loss(images, t, noise))
+
+    finally:
+        model.train(was_training)
+
+    return torch.cat(losses).mean()
+</pre></details>
+</div>
+  </li>
+  <li><span class="where">Any cell</span>
+    <span class="do">Run <code>eval_logs.clear()</code>. The old evaluations are on the old scale and would bend the chart.</span>
+  </li>
+  <li><span class="where">Cell <code># MAIN TRAINING LOOP</code></span>
+    <span class="do">Run it. It continues from the logged step.</span>
+    <span class="result-label">The START line should now show a train-loss close to the recent <code>loss</code> in the step lines:</span>
+    <div class="result">START step 12,500 | train-loss: 0.36… | test-loss: 0.37… | best test 0.37… at step 12,500</div>
+  </li>
+</ol>
+
+<h2>What changes</h2>
+<ul class="small">
+  <li><b>One source for the time distribution.</b> <code>t_logit_mean</code> and <code>t_logit_std</code> in the first cell now drive both the
+      train step and the split loss, through <code>sample_train_t</code>. Change them in one place and both follow.</li>
+  <li><b>The split loss still repeats exactly.</b> Fixed images, fixed seed for <code>t</code> and noise.</li>
+  <li><b>It is still not the same number as a step loss.</b> It runs in eval mode with the sparse middle off, on 1,280 fixed images. A step line
+      is the mean over <code>report_every</code> sparse training steps. Expect them close, not equal.</li>
+  <li><b>The numbers in the result box are from my tiny CPU test,</b> only to show the scale. Yours will differ.</li>
+</ul>
+
+<p class="small"><a href="/unify_next.html">The setup checklist</a> · <a href="/">Back to train-viz</a></p>
+</main>
+<script>
+  for (const box of document.querySelectorAll('.copy')) {
+    const pre = box.querySelector('pre');
+    const msg = box.querySelector('.msg');
+    box.querySelector('button').addEventListener('click', async () => {
+      const code = pre.textContent;
+      try { await navigator.clipboard.writeText(code); msg.textContent = 'Copied ' + (code.split('\n').length - 1) + ' lines'; }
+      catch (e) {
+        box.querySelector('details').open = true;
+        const r = document.createRange(); r.selectNodeContents(pre);
+        const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+        msg.textContent = 'Selected: press Ctrl+C (or Cmd+C) to copy';
+      }
+    });
+  }
+</script>
+</body>
+</html>

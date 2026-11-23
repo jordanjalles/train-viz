@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Crop check</title>
+<style>
+  body { margin: 0; padding: 20px 16px 40px; background: #090c12; color: #e8ecf3; font: 15px/1.5 system-ui, sans-serif; }
+  main { max-width: 860px; margin: 0 auto; }
+  h1 { font-size: 20px; margin: 0 0 6px; }
+  h2 { font-size: 16px; margin: 28px 0 4px; }
+  p, li { color: #a7b0c0; }
+  code { color: #e8ecf3; }
+  button { font: inherit; font-weight: 600; padding: 10px 20px; border-radius: 999px; border: 0; background: hsl(192 86% 64%); color: #06222a; cursor: pointer; min-height: 44px; }
+  .msg { margin-left: 12px; color: hsl(150 60% 55%); }
+  pre { margin-top: 12px; padding: 14px; background: #0f141d; border: 1px solid rgba(255,255,255,0.13); border-radius: 12px; overflow-x: auto; font: 12.5px/1.45 ui-monospace, Menlo, Consolas, monospace; }
+  a { color: hsl(192 86% 64%); }
+</style>
+</head>
+<body>
+<main>
+<h1>Check which crops training uses</h1>
+<ol>
+  <li>Stop the training loop (interrupt the kernel).</li>
+  <li>Copy, paste into a new cell below the training-loop cell, and run it.</li>
+  <li>Every line should end in <code>True</code>. Send me the output if not.</li>
+</ol>
+<table style="border-collapse:collapse;margin:8px 0 4px">
+<tr><td style="padding:4px 10px 4px 0">1–3 False</td><td style="color:#a7b0c0">the crop changes are not live: re-run the crop cell, the data cell and the train-step cell, or restart the kernel</td></tr>
+<tr><td style="padding:4px 10px 4px 0">4 False</td><td style="color:#a7b0c0">the judge copies an old encoder: re-run the train-step and compile cells after the model cell</td></tr>
+</table>
+<section>
+<button>Copy check cell</button><span class="msg" role="status"></span>
+<pre># Which crops does training use? Stop the training loop first.
+import inspect
+
+import torch
+
+N = IMAGE_SIZE
+print(&quot;1. crop cell applied (crop_inside_mask defined):&quot;,
+      &quot;crop_inside_mask&quot; in globals())
+
+# 2. a fresh dataset batch: do crops overhang, and is the
+#    off-image part black? (uses the data cell as it is now)
+imgs, ex = next(iter(train_dataloader))
+grid, real = ex[&quot;crop_grid&quot;], ex[&quot;crop_real&quot;]
+lim = 1 + 1 / (N - 1)
+off = (grid.abs() &gt; lim).any(-1)[:, None].expand_as(real)
+print(f&quot;2. dataset crops overhang: {off.any().item()}&quot;
+      f&quot; ({off.float().mean():.1%} of pixels off image)&quot;)
+if off.any():
+    print(&quot;   off-image pixels black:&quot;,
+          real[off].abs().max().item() == 0)
+
+# 3. reconstruction crops through the train step&#x27;s crop_scale
+#    (train_step looks crop_scale up by name when it runs)
+dev = next(encoder.parameters()).device
+ones = torch.ones(4, 3, N, N, device=dev)
+rc = crop_scale(ones, grid[:4].to(dev))
+o4 = off[:4].to(dev)
+if o4.any():
+    print(&quot;3. recon crops black off image:&quot;,
+          rc[o4].abs().max().item() == 0)
+else:
+    print(&quot;3. no overhang in this batch: recon mask not tested&quot;)
+
+# 4. does the judge copy the encoder you are training?
+fn = getattr(train_step, &quot;_torchdynamo_orig_callable&quot;, train_step)
+pairs = inspect.getclosurevars(fn).nonlocals[&quot;state_pairs&quot;]
+src = getattr(encoder, &quot;_orig_mod&quot;, encoder)
+print(&quot;4. judge copies the current encoder:&quot;,
+      pairs[0][1] is next(src.parameters()))
+</pre>
+</section>
+<p><a href="/maskcrop.html">Crop cells</a> · <a href="/">Back to train-viz</a></p>
+</main>
+<script>
+  for (const section of document.querySelectorAll('section')) {
+    const pre = section.querySelector('pre');
+    const msg = section.querySelector('.msg');
+    section.querySelector('button').addEventListener('click', async () => {
+      const code = pre.textContent;
+      try { await navigator.clipboard.writeText(code); msg.textContent = 'Copied ' + (code.split('\n').length - 1) + ' lines'; }
+      catch (e) {
+        const r = document.createRange(); r.selectNodeContents(pre);
+        const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+        msg.textContent = 'Selected: press Ctrl+C (or Cmd+C) to copy';
+      }
+    });
+  }
+</script>
+</body>
+</html>

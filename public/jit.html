@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JiT noise recipe</title>
+<style>
+  :root { --bg: #090c12; --panel: #0f141d; --line: rgba(255,255,255,0.13); --ink: #e8ecf3; --ink2: #a7b0c0; --accent: hsl(192 86% 64%); }
+  .s-control { --c: #3987e5; } .s-jit { --c: #d95926; } .s-pure5 { --c: #199e70; } .s-mean14 { --c: #c98500; }
+  @media (prefers-color-scheme: light) {
+    :root { --bg: #f5f6f8; --panel: #ffffff; --line: rgba(0,0,0,0.14); --ink: #141821; --ink2: #4c5566; --accent: hsl(192 80% 32%); }
+    .s-control { --c: #2a78d6; } .s-jit { --c: #eb6834; } .s-pure5 { --c: #1baf7a; } .s-mean14 { --c: #eda100; }
+  }
+  body { margin: 0; padding: 20px 16px 48px; background: var(--bg); color: var(--ink); font: 15px/1.5 system-ui, sans-serif; }
+  main { max-width: 1080px; margin: 0 auto; }
+  h1 { font-size: 20px; margin: 0 0 6px; }
+  h2 { font-size: 16px; margin: 30px 0 4px; }
+  p, li { color: var(--ink2); max-width: 82ch; }
+  p { margin: 0 0 12px; }
+  a { color: var(--accent); }
+  svg { display: block; width: 100%; max-width: 720px; height: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; }
+  .grid { stroke: var(--line); stroke-width: 1; }
+  .tick, .reflabel { fill: var(--ink2); font-size: 12px; }
+  .val { fill: var(--ink); font-size: 12px; }
+  .line { fill: none; stroke: var(--c); stroke-width: 2; }
+  .dot { fill: var(--c); stroke: var(--panel); stroke-width: 2; }
+  .hit { fill: transparent; }
+  .hit:hover { fill: var(--line); }
+  .ref { stroke: var(--ink2); stroke-width: 1.5; stroke-dasharray: 5 5; }
+  .legend { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 0 0 8px; color: var(--ink2); font-size: 13px; }
+  .sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; background: var(--c); margin-right: 6px; vertical-align: -1px; }
+  table { border-collapse: collapse; margin: 6px 0 4px; font-size: 14px; font-variant-numeric: tabular-nums; }
+  th, td { text-align: right; padding: 5px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th { color: var(--ink2); font-weight: 600; }
+  td.note, th.note { text-align: left; }
+  .wrap { overflow-x: auto; }
+  .grids { display: grid; grid-template-columns: 1fr; gap: 14px; }
+  @media (min-width: 900px) { .grids { grid-template-columns: 1fr 1fr; } }
+  figure { margin: 0; }
+  figure img { display: block; width: 100%; height: auto; border-radius: 8px; border: 1px solid var(--line); }
+  figcaption { color: var(--ink2); font-size: 13px; margin-top: 4px; }
+</style>
+</head>
+<body>
+<main>
+<h1>JiT noise recipe: FID, brightness and spread</h1>
+<p>Base model (8 blocks, width 360), seed 2, 100,000 steps on the 3090. Scores: 10,000 samples, 16 Euler steps.
+Probe: 96 samples, 20 Euler steps, averaged (EMA) weights. <a href="/">Back to train-viz</a></p>
+<ul><li><b>Baseline:</b> logit-normal noise levels, mean 0, std 1.5.</li><li><b>JiT recipe:</b> noise levels of JiT: logit-normal mean 0.586, std 0.8 (more low-noise inputs).</li><li><b>JiT + 5% pure noise:</b> JiT recipe, and 5% of the inputs at noise levels 0.9 to 1.</li><li><b>Noise-mean spread:</b> baseline noise levels, and each noise sample gets one constant offset: 0.0136 × randn on all pixels.</li></ul>
+
+<h2>Scores and sample statistics at step 100,000</h2>
+<div class="wrap">
+<table>
+  <tr><th class="note">Run</th><th>FID EMA</th><th>FID raw</th><th>First prediction brightness</th><th>Final brightness</th><th>Spread between images</th><th>Contrast within images</th><th>Black pixels</th><th>White pixels</th><th>Noise mean → final brightness</th></tr>
+<tr><td class='note'><i class='sw s-control'></i>Baseline</td><td>136.8</td><td>135.1</td><td>0.45</td><td>0.45</td><td>0.098</td><td>0.167</td><td>0.1%</td><td>0.4%</td><td>20.3</td></tr>
+<tr><td class='note'><i class='sw s-jit'></i>JiT recipe</td><td>122.3</td><td>121.9</td><td>0.12</td><td>0.19</td><td>0.098</td><td>0.149</td><td>8.5%</td><td>0.1%</td><td>19.8</td></tr>
+<tr><td class='note'><i class='sw s-pure5'></i>JiT + 5% pure noise</td><td>129.8</td><td>–</td><td>0.44</td><td>0.44</td><td>0.080</td><td>0.161</td><td>0.0%</td><td>0.2%</td><td>16.6</td></tr>
+<tr><td class='note'><i class='sw s-mean14'></i>Noise-mean spread</td><td>141.0</td><td>139.7</td><td>0.45</td><td>0.44</td><td>0.045</td><td>0.169</td><td>0.0%</td><td>0.1%</td><td>6.5</td></tr>
+<tr><td class='note'>Real images</td><td></td><td></td><td></td><td>0.41</td><td>0.137</td><td>0.222</td><td>3.2%</td><td>1.0%</td><td></td></tr>
+</table>
+</div>
+<p>Spread between images: std of the image means. Contrast within images: mean std of the pixels in one image.
+The last column is the slope of the final brightness against the mean of the starting noise: how much a tiny offset of the noise moves the image.</p>
+
+<h2>Brightness at each sampler step</h2>
+<div class="legend"><span><i class="sw s-control"></i>Baseline</span><span><i class="sw s-jit"></i>JiT recipe</span><span><i class="sw s-pure5"></i>JiT + 5% pure noise</span><span><i class="sw s-mean14"></i>Noise-mean spread</span></div>
+<svg viewBox="0 0 720 320" role="img" aria-label="Mean brightness of the samples at each sampler step">
+<line class="grid" x1="52" x2="570" y1="276.0" y2="276.0"/><text class="tick" x="44" y="280.0" text-anchor="end">0.1</text>
+<line class="grid" x1="52" x2="570" y1="212.0" y2="212.0"/><text class="tick" x="44" y="216.0" text-anchor="end">0.2</text>
+<line class="grid" x1="52" x2="570" y1="148.0" y2="148.0"/><text class="tick" x="44" y="152.0" text-anchor="end">0.3</text>
+<line class="grid" x1="52" x2="570" y1="84.0" y2="84.0"/><text class="tick" x="44" y="88.0" text-anchor="end">0.4</text>
+<line class="grid" x1="52" x2="570" y1="20.0" y2="20.0"/><text class="tick" x="44" y="24.0" text-anchor="end">0.5</text>
+<text class="tick" x="52.0" y="294" text-anchor="middle">1</text>
+<text class="tick" x="161.1" y="294" text-anchor="middle">5</text>
+<text class="tick" x="297.4" y="294" text-anchor="middle">10</text>
+<text class="tick" x="433.7" y="294" text-anchor="middle">15</text>
+<text class="tick" x="570.0" y="294" text-anchor="middle">20</text>
+<text class="tick" x="311" y="314" text-anchor="middle">sampler step (20 Euler steps, noise 1 to 0)</text>
+<line class="ref" x1="52" x2="570" y1="79.0" y2="79.0"/><text class="reflabel" x="578" y="83.0">real images 0.41</text>
+<polyline class="line s-control" points="52.0,50.2 79.3,52.8 106.5,52.4 133.8,51.4 161.1,51.2 188.3,51.6 215.6,51.4 242.8,51.4 270.1,51.6 297.4,51.7 324.6,51.5 351.9,51.5 379.2,51.4 406.4,51.4 433.7,51.5 460.9,51.5 488.2,51.5 515.5,51.5 542.7,51.6 570.0,51.5"/>
+<circle class="hit" cx="52.0" cy="50.2" r="7"><title>Baseline, step 1: brightness 0.453</title></circle>
+<circle class="hit" cx="79.3" cy="52.8" r="7"><title>Baseline, step 2: brightness 0.449</title></circle>
+<circle class="hit" cx="106.5" cy="52.4" r="7"><title>Baseline, step 3: brightness 0.449</title></circle>
+<circle class="hit" cx="133.8" cy="51.4" r="7"><title>Baseline, step 4: brightness 0.451</title></circle>
+<circle class="hit" cx="161.1" cy="51.2" r="7"><title>Baseline, step 5: brightness 0.451</title></circle>
+<circle class="hit" cx="188.3" cy="51.6" r="7"><title>Baseline, step 6: brightness 0.451</title></circle>
+<circle class="hit" cx="215.6" cy="51.4" r="7"><title>Baseline, step 7: brightness 0.451</title></circle>
+<circle class="hit" cx="242.8" cy="51.4" r="7"><title>Baseline, step 8: brightness 0.451</title></circle>
+<circle class="hit" cx="270.1" cy="51.6" r="7"><title>Baseline, step 9: brightness 0.451</title></circle>
+<circle class="hit" cx="297.4" cy="51.7" r="7"><title>Baseline, step 10: brightness 0.450</title></circle>
+<circle class="hit" cx="324.6" cy="51.5" r="7"><title>Baseline, step 11: brightness 0.451</title></circle>
+<circle class="hit" cx="351.9" cy="51.5" r="7"><title>Baseline, step 12: brightness 0.451</title></circle>
+<circle class="hit" cx="379.2" cy="51.4" r="7"><title>Baseline, step 13: brightness 0.451</title></circle>
+<circle class="hit" cx="406.4" cy="51.4" r="7"><title>Baseline, step 14: brightness 0.451</title></circle>
+<circle class="hit" cx="433.7" cy="51.5" r="7"><title>Baseline, step 15: brightness 0.451</title></circle>
+<circle class="hit" cx="460.9" cy="51.5" r="7"><title>Baseline, step 16: brightness 0.451</title></circle>
+<circle class="hit" cx="488.2" cy="51.5" r="7"><title>Baseline, step 17: brightness 0.451</title></circle>
+<circle class="hit" cx="515.5" cy="51.5" r="7"><title>Baseline, step 18: brightness 0.451</title></circle>
+<circle class="hit" cx="542.7" cy="51.6" r="7"><title>Baseline, step 19: brightness 0.451</title></circle>
+<circle class="hit" cx="570.0" cy="51.5" r="7"><title>Baseline, step 20: brightness 0.451</title></circle>
+<polyline class="line s-jit" points="52.0,260.8 79.3,199.8 106.5,205.7 133.8,212.6 161.1,214.4 188.3,215.1 215.6,215.3 242.8,215.5 270.1,215.3 297.4,215.6 324.6,215.4 351.9,215.5 379.2,215.4 406.4,215.4 433.7,215.5 460.9,215.4 488.2,215.4 515.5,215.4 542.7,215.4 570.0,215.3"/>
+<circle class="hit" cx="52.0" cy="260.8" r="7"><title>JiT recipe, step 1: brightness 0.124</title></circle>
+<circle class="hit" cx="79.3" cy="199.8" r="7"><title>JiT recipe, step 2: brightness 0.219</title></circle>
+<circle class="hit" cx="106.5" cy="205.7" r="7"><title>JiT recipe, step 3: brightness 0.210</title></circle>
+<circle class="hit" cx="133.8" cy="212.6" r="7"><title>JiT recipe, step 4: brightness 0.199</title></circle>
+<circle class="hit" cx="161.1" cy="214.4" r="7"><title>JiT recipe, step 5: brightness 0.196</title></circle>
+<circle class="hit" cx="188.3" cy="215.1" r="7"><title>JiT recipe, step 6: brightness 0.195</title></circle>
+<circle class="hit" cx="215.6" cy="215.3" r="7"><title>JiT recipe, step 7: brightness 0.195</title></circle>
+<circle class="hit" cx="242.8" cy="215.5" r="7"><title>JiT recipe, step 8: brightness 0.195</title></circle>
+<circle class="hit" cx="270.1" cy="215.3" r="7"><title>JiT recipe, step 9: brightness 0.195</title></circle>
+<circle class="hit" cx="297.4" cy="215.6" r="7"><title>JiT recipe, step 10: brightness 0.194</title></circle>
+<circle class="hit" cx="324.6" cy="215.4" r="7"><title>JiT recipe, step 11: brightness 0.195</title></circle>
+<circle class="hit" cx="351.9" cy="215.5" r="7"><title>JiT recipe, step 12: brightness 0.195</title></circle>
+<circle class="hit" cx="379.2" cy="215.4" r="7"><title>JiT recipe, step 13: brightness 0.195</title></circle>
+<circle class="hit" cx="406.4" cy="215.4" r="7"><title>JiT recipe, step 14: brightness 0.195</title></circle>
+<circle class="hit" cx="433.7" cy="215.5" r="7"><title>JiT recipe, step 15: brightness 0.195</title></circle>
+<circle class="hit" cx="460.9" cy="215.4" r="7"><title>JiT recipe, step 16: brightness 0.195</title></circle>
+<circle class="hit" cx="488.2" cy="215.4" r="7"><title>JiT recipe, step 17: brightness 0.195</title></circle>
+<circle class="hit" cx="515.5" cy="215.4" r="7"><title>JiT recipe, step 18: brightness 0.195</title></circle>
+<circle class="hit" cx="542.7" cy="215.4" r="7"><title>JiT recipe, step 19: brightness 0.195</title></circle>
+<circle class="hit" cx="570.0" cy="215.3" r="7"><title>JiT recipe, step 20: brightness 0.195</title></circle>
+<polyline class="line s-pure5" points="52.0,58.6 79.3,58.8 106.5,59.3 133.8,58.7 161.1,59.0 188.3,58.4 215.6,58.2 242.8,58.4 270.1,58.7 297.4,58.8 324.6,58.5 351.9,58.6 379.2,58.7 406.4,58.6 433.7,58.7 460.9,58.7 488.2,58.7 515.5,58.8 542.7,58.7 570.0,58.6"/>
+<circle class="hit" cx="52.0" cy="58.6" r="7"><title>JiT + 5% pure noise, step 1: brightness 0.440</title></circle>
+<circle class="hit" cx="79.3" cy="58.8" r="7"><title>JiT + 5% pure noise, step 2: brightness 0.439</title></circle>
+<circle class="hit" cx="106.5" cy="59.3" r="7"><title>JiT + 5% pure noise, step 3: brightness 0.439</title></circle>
+<circle class="hit" cx="133.8" cy="58.7" r="7"><title>JiT + 5% pure noise, step 4: brightness 0.439</title></circle>
+<circle class="hit" cx="161.1" cy="59.0" r="7"><title>JiT + 5% pure noise, step 5: brightness 0.439</title></circle>
+<circle class="hit" cx="188.3" cy="58.4" r="7"><title>JiT + 5% pure noise, step 6: brightness 0.440</title></circle>
+<circle class="hit" cx="215.6" cy="58.2" r="7"><title>JiT + 5% pure noise, step 7: brightness 0.440</title></circle>
+<circle class="hit" cx="242.8" cy="58.4" r="7"><title>JiT + 5% pure noise, step 8: brightness 0.440</title></circle>
+<circle class="hit" cx="270.1" cy="58.7" r="7"><title>JiT + 5% pure noise, step 9: brightness 0.440</title></circle>
+<circle class="hit" cx="297.4" cy="58.8" r="7"><title>JiT + 5% pure noise, step 10: brightness 0.439</title></circle>
+<circle class="hit" cx="324.6" cy="58.5" r="7"><title>JiT + 5% pure noise, step 11: brightness 0.440</title></circle>
+<circle class="hit" cx="351.9" cy="58.6" r="7"><title>JiT + 5% pure noise, step 12: brightness 0.440</title></circle>
+<circle class="hit" cx="379.2" cy="58.7" r="7"><title>JiT + 5% pure noise, step 13: brightness 0.440</title></circle>
+<circle class="hit" cx="406.4" cy="58.6" r="7"><title>JiT + 5% pure noise, step 14: brightness 0.440</title></circle>
+<circle class="hit" cx="433.7" cy="58.7" r="7"><title>JiT + 5% pure noise, step 15: brightness 0.440</title></circle>
+<circle class="hit" cx="460.9" cy="58.7" r="7"><title>JiT + 5% pure noise, step 16: brightness 0.440</title></circle>
+<circle class="hit" cx="488.2" cy="58.7" r="7"><title>JiT + 5% pure noise, step 17: brightness 0.440</title></circle>
+<circle class="hit" cx="515.5" cy="58.8" r="7"><title>JiT + 5% pure noise, step 18: brightness 0.439</title></circle>
+<circle class="hit" cx="542.7" cy="58.7" r="7"><title>JiT + 5% pure noise, step 19: brightness 0.440</title></circle>
+<circle class="hit" cx="570.0" cy="58.6" r="7"><title>JiT + 5% pure noise, step 20: brightness 0.440</title></circle>
+<polyline class="line s-mean14" points="52.0,50.1 79.3,58.9 106.5,61.7 133.8,61.5 161.1,61.1 188.3,60.3 215.6,60.1 242.8,60.0 270.1,60.2 297.4,60.0 324.6,60.3 351.9,60.1 379.2,60.0 406.4,60.1 433.7,60.1 460.9,60.1 488.2,60.0 515.5,60.0 542.7,60.0 570.0,59.9"/>
+<circle class="hit" cx="52.0" cy="50.1" r="7"><title>Noise-mean spread, step 1: brightness 0.453</title></circle>
+<circle class="hit" cx="79.3" cy="58.9" r="7"><title>Noise-mean spread, step 2: brightness 0.439</title></circle>
+<circle class="hit" cx="106.5" cy="61.7" r="7"><title>Noise-mean spread, step 3: brightness 0.435</title></circle>
+<circle class="hit" cx="133.8" cy="61.5" r="7"><title>Noise-mean spread, step 4: brightness 0.435</title></circle>
+<circle class="hit" cx="161.1" cy="61.1" r="7"><title>Noise-mean spread, step 5: brightness 0.436</title></circle>
+<circle class="hit" cx="188.3" cy="60.3" r="7"><title>Noise-mean spread, step 6: brightness 0.437</title></circle>
+<circle class="hit" cx="215.6" cy="60.1" r="7"><title>Noise-mean spread, step 7: brightness 0.437</title></circle>
+<circle class="hit" cx="242.8" cy="60.0" r="7"><title>Noise-mean spread, step 8: brightness 0.438</title></circle>
+<circle class="hit" cx="270.1" cy="60.2" r="7"><title>Noise-mean spread, step 9: brightness 0.437</title></circle>
+<circle class="hit" cx="297.4" cy="60.0" r="7"><title>Noise-mean spread, step 10: brightness 0.438</title></circle>
+<circle class="hit" cx="324.6" cy="60.3" r="7"><title>Noise-mean spread, step 11: brightness 0.437</title></circle>
+<circle class="hit" cx="351.9" cy="60.1" r="7"><title>Noise-mean spread, step 12: brightness 0.437</title></circle>
+<circle class="hit" cx="379.2" cy="60.0" r="7"><title>Noise-mean spread, step 13: brightness 0.438</title></circle>
+<circle class="hit" cx="406.4" cy="60.1" r="7"><title>Noise-mean spread, step 14: brightness 0.437</title></circle>
+<circle class="hit" cx="433.7" cy="60.1" r="7"><title>Noise-mean spread, step 15: brightness 0.437</title></circle>
+<circle class="hit" cx="460.9" cy="60.1" r="7"><title>Noise-mean spread, step 16: brightness 0.437</title></circle>
+<circle class="hit" cx="488.2" cy="60.0" r="7"><title>Noise-mean spread, step 17: brightness 0.437</title></circle>
+<circle class="hit" cx="515.5" cy="60.0" r="7"><title>Noise-mean spread, step 18: brightness 0.438</title></circle>
+<circle class="hit" cx="542.7" cy="60.0" r="7"><title>Noise-mean spread, step 19: brightness 0.437</title></circle>
+<circle class="hit" cx="570.0" cy="59.9" r="7"><title>Noise-mean spread, step 20: brightness 0.438</title></circle>
+<circle class="dot s-jit" cx="570.0" cy="215.3" r="4"/><text class="val" x="578" y="219.3">JiT recipe</text>
+<circle class="dot s-mean14" cx="570.0" cy="59.9" r="4"/><text class="val" x="578" y="63.9">Noise-mean spread</text>
+<circle class="dot s-pure5" cx="570.0" cy="58.6" r="4"/><text class="val" x="578" y="49.9">JiT + 5% pure noise</text>
+<circle class="dot s-control" cx="570.0" cy="51.5" r="4"/><text class="val" x="578" y="35.9">Baseline</text>
+</svg>
+<p>The JiT recipe trains almost never at noise levels above 0.9 (0.025% of the inputs), so its first prediction is dark and the samples stay dark.
+5% of inputs at nearly pure noise fixes the brightness but not the spread between images.</p>
+
+<h2>FID over training (EMA)</h2>
+<div class="wrap">
+<table>
+  <tr><th class="note">Run</th><th>25k</th><th>50k</th><th>75k</th><th>100k</th></tr>
+<tr><td class='note'><i class='sw s-control'></i>Baseline</td><td>180.2</td><td>156.4</td><td>146.2</td><td>136.8</td></tr>
+<tr><td class='note'><i class='sw s-jit'></i>JiT recipe</td><td>159.4</td><td>140.1</td><td>130.4</td><td>122.3</td></tr>
+<tr><td class='note'><i class='sw s-pure5'></i>JiT + 5% pure noise</td><td>–</td><td>–</td><td>–</td><td>129.8</td></tr>
+<tr><td class='note'><i class='sw s-mean14'></i>Noise-mean spread</td><td>182.8</td><td>160.7</td><td>150.7</td><td>141.0</td></tr>
+</table>
+</div>
+
+<h2>Samples at step 100,000</h2>
+<p>The in-run sample grids, 12 samples per run.</p>
+<div class="grids"><figure><img src="jit/control.png" alt="Baseline: 12 samples at step 100,000" loading="lazy"><figcaption><i class="sw s-control"></i>Baseline</figcaption></figure><figure><img src="jit/jit.png" alt="JiT recipe: 12 samples at step 100,000" loading="lazy"><figcaption><i class="sw s-jit"></i>JiT recipe</figcaption></figure><figure><img src="jit/pure5.png" alt="JiT + 5% pure noise: 12 samples at step 100,000" loading="lazy"><figcaption><i class="sw s-pure5"></i>JiT + 5% pure noise</figcaption></figure><figure><img src="jit/mean14.png" alt="Noise-mean spread: 12 samples at step 100,000" loading="lazy"><figcaption><i class="sw s-mean14"></i>Noise-mean spread</figcaption></figure></div>
+</main>
+</body>
+</html>

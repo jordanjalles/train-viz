@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Colab JiT 820k FID</title>
+<style>
+/* Layout: one reading column; charts and sample strips run full column width. */
+:root {
+  --bg: #f6f7f8; --surface: #ffffff; --fg: #15191d; --muted: #5b6670; --rule: #dde2e6;
+  --c256: #0d6e6e; --c128: #63b3ad; --spark: #b8772e; --mark: #8a3b52;
+  --display: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --body: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #111417; --surface: #181c20; --fg: #e6eaed; --muted: #97a3ad; --rule: #2a3137;
+  --c256: #4cc3bd; --c128: #2f7d78; --spark: #d9a05c; --mark: #d97a95; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #111417; --surface: #181c20; --fg: #e6eaed; --muted: #97a3ad; --rule: #2a3137;
+  --c256: #4cc3bd; --c128: #2f7d78; --spark: #d9a05c; --mark: #d97a95; color-scheme: dark }
+body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 15px; line-height: 1.55; }
+.back { font-size: 13px; color: var(--c256); text-decoration: none; }
+.wrap { max-width: 980px; margin: 0 auto; padding-block: 28px 56px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 40px; }
+h1, h2 { font-family: var(--display); text-wrap: balance; margin: 0; letter-spacing: -0.01em; }
+h1 { font-size: clamp(26px, 4.5vw, 38px); font-weight: 700; line-height: 1.15; }
+h2 { font-size: 20px; font-weight: 600; }
+p { margin: 0; max-width: 68ch; }
+.eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+header { display: grid; gap: 12px; }
+.lede { font-size: 17px; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+.tile { background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; padding: 14px 16px; display: grid; gap: 2px; }
+.tile .v { font-family: var(--mono); font-size: 28px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.tile .k { font-size: 13px; color: var(--muted); }
+.tile.main .v { color: var(--c256); }
+section { display: grid; gap: 14px; }
+.chart { background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; padding: 12px 8px 6px; overflow-x: auto; }
+.chart svg { display: block; width: 100%; min-width: 560px; height: auto; font-family: var(--mono); }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 13px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.sw { width: 18px; height: 3px; border-radius: 2px; display: inline-block; }
+.note { font-size: 13px; color: var(--muted); }
+.steps { display: flex; flex-wrap: wrap; gap: 6px; }
+.steps button { font: 500 13px var(--mono); padding: 6px 12px; border-radius: 999px; border: 1px solid var(--rule);
+  background: var(--surface); color: var(--fg); cursor: pointer; }
+.steps button[aria-selected="true"] { background: var(--c256); border-color: var(--c256); color: var(--surface); }
+.steps button:focus-visible { outline: 2px solid var(--c256); outline-offset: 2px; }
+.tiles { grid-template-columns: repeat(3, 1fr); }
+@media (max-width: 480px) { .tile .v { font-size: 22px; } }
+figure { margin: 0; display: grid; gap: 6px; }
+figure img { width: 100%; height: auto; border-radius: 4px; background: var(--rule); }
+figcaption { font-family: var(--mono); font-size: 12.5px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 14px; }
+figcaption b { color: var(--fg); font-weight: 500; }
+.tbl { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 13.5px; min-width: 560px; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+th { font-weight: 600; color: var(--muted); font-size: 12px; letter-spacing: 0.04em; text-transform: uppercase; }
+td.n { font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+ul.find { margin: 0; padding-left: 20px; display: grid; gap: 8px; max-width: 72ch; }
+code { font-family: var(--mono); font-size: 0.9em; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div><a class="back" href="/#reports">← all reports</a> <span class="back">·</span> <a class="back" href="/colab-plan.html">the Colab plan</a></div>
+    <h1>Colab JiT · 820k steps · FID 42.3</h1>
+    <div class="tiles">
+      <div class="tile main"><span class="v">42.3</span><span class="k">final · 256 px</span></div>
+      <div class="tile"><span class="v">37.0</span><span class="k">end of 128 px stage</span></div>
+      <div class="tile"><span class="v">82.0</span><span class="k">best Spark run</span></div>
+    </div>
+  </header>
+
+  <section>
+    <h2>FID ↓ over training</h2>
+    <div class="legend">
+      <span><i class="sw" style="background:var(--c128)"></i>Colab 128 px</span>
+      <span><i class="sw" style="background:var(--c256)"></i>Colab 256 px</span>
+      <span><i class="sw" style="background:var(--spark)"></i>Spark 95M</span>
+    </div>
+    <div class="chart"><svg id="curve" viewBox="0 0 900 380" role="img" aria-label="FID against training step"></svg></div>
+  </section>
+
+  <section>
+    <h2>256 px stage, zoomed</h2>
+    <div class="chart"><svg id="zoom" viewBox="0 0 900 260" role="img" aria-label="FID during the 256 px stage"></svg></div>
+  </section>
+
+  <section>
+    <h2>FID ↓ by run</h2>
+    <div class="chart"><svg id="bars" viewBox="0 0 900 380" role="img" aria-label="FID by run"></svg></div>
+  </section>
+
+  <section>
+    <h2>Samples</h2>
+    <div class="steps" id="stepbtns" role="tablist"></div>
+    <figure id="sample"><img id="sampleimg" alt=""><figcaption id="samplecap"></figcaption></figure>
+  </section>
+
+  <p class="note">Colab: class-conditional, guidance 3. Spark: no conditioning, no guidance. FID: 10k samples, 16 Euler steps.</p>
+</div>
+
+<script id="data" type="application/json">{"A": [{"step": 80000, "fid": 75.01, "kid": 41.42}, {"step": 160000, "fid": 56.31, "kid": 25.61}, {"step": 240000, "fid": 50.21, "kid": 22.05}, {"step": 320000, "fid": 44.95, "kid": 18.33}, {"step": 400000, "fid": 41.45, "kid": 15.45}, {"step": 480000, "fid": 39.08, "kid": 14.73}, {"step": 560000, "fid": 38.12, "kid": 13.91}, {"step": 640000, "fid": 36.97, "kid": 13.56}, {"step": 650000, "fid": 37.03, "kid": 13.49}], "B": [{"step": 660000, "fid": 45.07, "kid": 22.09}, {"step": 680000, "fid": 46.6, "kid": 22.48}, {"step": 700000, "fid": 45.66, "kid": 23.22}, {"step": 720000, "fid": 45.28, "kid": 23.22}, {"step": 740000, "fid": 44.96, "kid": 22.91}, {"step": 760000, "fid": 44.62, "kid": 22.36}, {"step": 780000, "fid": 44.71, "kid": 21.88}, {"step": 800000, "fid": 42.41, "kid": 21.26}, {"step": 820000, "fid": 42.31, "kid": 21.0}], "spark": [{"step": 25000, "fid": 166.18, "kid": 130.67}, {"step": 50000, "fid": 152.22, "kid": 106.93}, {"step": 75000, "fid": 134.2, "kid": 76.53}, {"step": 100000, "fid": 111.84, "kid": 62.78}, {"step": 125000, "fid": 112.52, "kid": 60.92}, {"step": 150000, "fid": 103.84, "kid": 52.63}, {"step": 175000, "fid": 123.58, "kid": 70.2}, {"step": 200000, "fid": 104.25, "kid": 48.65}, {"step": 225000, "fid": 94.07, "kid": 47.83}, {"step": 250000, "fid": 103.6, "kid": 47.83}, {"step": 275000, "fid": 95.79, "kid": 57.08}, {"step": 300000, "fid": 90.67, "kid": 45.65}, {"step": 325000, "fid": 96.33, "kid": 43.19}, {"step": 350000, "fid": 151.55, "kid": 108.64}, {"step": 375000, "fid": 99.97, "kid": 45.0}, {"step": 400000, "fid": 93.81, "kid": 40.17}, {"step": 425000, "fid": 82.55, "kid": 42.07}, {"step": 450000, "fid": 88.43, "kid": 40.6}, {"step": 475000, "fid": 93.25, "kid": 38.27}, {"step": 500000, "fid": 92.66, "kid": 39.55}, {"step": 525000, "fid": 99.38, "kid": 43.67}, {"step": 550000, "fid": 88.26, "kid": 41.75}, {"step": 575000, "fid": 94.07, "kid": 41.33}, {"step": 600000, "fid": 82.81, "kid": 39.56}, {"step": 625000, "fid": 85.78, "kid": 39.62}, {"step": 650000, "fid": 91.59, "kid": 40.49}, {"step": 750000, "fid": 88.76, "kid": 42.62}, {"step": 850000, "fid": 84.2, "kid": 40.85}, {"step": 950000, "fid": 85.78, "kid": 43.99}, {"step": 1000000, "fid": 82.01, "kid": 42.36}, {"step": 1050000, "fid": 82.83, "kid": 41.97}, {"step": 1100000, "fid": 85.26, "kid": 42.74}, {"step": 1150000, "fid": 81.99, "kid": 42.92}, {"step": 1200000, "fid": 84.42, "kid": 41.8}], "sweep": [{"size": "1m", "best": 220.39, "n": 6}, {"size": "2m", "best": 192.99, "n": 6}, {"size": "5m", "best": 155.3, "n": 6}, {"size": "10m", "best": 135.67, "n": 6}, {"size": "20m", "best": 123.25, "n": 6}, {"size": "50m", "best": 113.1, "n": 6}], "imgs": [{"step": 10000, "res": "128 px", "w": 788, "h": 260, "src": "/colab-jit-820k/samples_010000.jpg"}, {"step": 80000, "res": "128 px", "w": 788, "h": 260, "src": "/colab-jit-820k/samples_080000.jpg"}, {"step": 320000, "res": "128 px", "w": 788, "h": 260, "src": "/colab-jit-820k/samples_320000.jpg"}, {"step": 650000, "res": "128 px", "w": 788, "h": 260, "src": "/colab-jit-820k/samples_650000.jpg"}, {"step": 660000, "res": "256 px", "w": 1200, "h": 398, "src": "/colab-jit-820k/samples_660000.jpg"}, {"step": 820000, "res": "256 px", "w": 1200, "h": 398, "src": "/colab-jit-820k/samples_820000.jpg"}]}</script>
+<script>
+const D = JSON.parse(document.getElementById('data').textContent);
+const NS = 'http://www.w3.org/2000/svg';
+function el(tag, attrs, parent, text) {
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (text !== undefined) e.textContent = text;
+  if (parent) parent.appendChild(e);
+  return e;
+}
+const css = v => `var(${v})`;
+
+// FID curve
+(function () {
+  const svg = document.getElementById('curve');
+  const W = 900, H = 380, L = 52, R = 18, T = 16, B = 40;
+  const xMax = 1250000, yMax = 170;
+  const x = s => L + (s / xMax) * (W - L - R);
+  const y = f => T + (1 - Math.min(f, yMax) / yMax) * (H - T - B);
+  // stage bands
+  el('rect', { x: x(0), y: T, width: x(650000) - x(0), height: H - T - B, fill: css('--c128'), 'fill-opacity': 0.07 }, svg);
+  el('rect', { x: x(650000), y: T, width: x(820000) - x(650000), height: H - T - B, fill: css('--c256'), 'fill-opacity': 0.1 }, svg);
+  for (let f = 0; f <= yMax; f += 20) {
+    el('line', { x1: L, x2: W - R, y1: y(f), y2: y(f), stroke: css('--rule'), 'stroke-width': 1 }, svg);
+    el('text', { x: L - 8, y: y(f) + 4, 'text-anchor': 'end', 'font-size': 11, fill: css('--muted') }, svg, f);
+  }
+  for (let s = 0; s <= 1200000; s += 200000) {
+    el('text', { x: x(s), y: H - B + 18, 'text-anchor': 'middle', 'font-size': 11, fill: css('--muted') }, svg, s === 0 ? '0' : (s / 1000) + 'k');
+  }
+  el('text', { x: (L + W - R) / 2, y: H - 4, 'text-anchor': 'middle', 'font-size': 11, fill: css('--muted') }, svg, 'training step');
+  el('text', { x: 14, y: T + 8, 'font-size': 11, fill: css('--muted') }, svg, 'FID');
+  // lr drop marker
+  el('line', { x1: x(794000), x2: x(794000), y1: T, y2: H - B, stroke: css('--mark'), 'stroke-dasharray': '3 3' }, svg);
+  el('text', { x: x(794000) - 4, y: T + 12, 'text-anchor': 'end', 'font-size': 10.5, fill: css('--mark') }, svg, 'lr 1e-5');
+  el('text', { x: x(325000), y: T + 12, 'text-anchor': 'middle', 'font-size': 10.5, fill: css('--muted') }, svg, '128 px');
+  el('text', { x: x(735000), y: H - B - 8, 'text-anchor': 'middle', 'font-size': 10.5, fill: css('--muted') }, svg, '256 px');
+  function series(pts, color, w) {
+    const d = pts.map((p, i) => (i ? 'L' : 'M') + x(p.step).toFixed(1) + ' ' + y(p.fid).toFixed(1)).join(' ');
+    el('path', { d, fill: 'none', stroke: css(color), 'stroke-width': w, 'stroke-linejoin': 'round' }, svg);
+    pts.forEach(p => {
+      const c = el('circle', { cx: x(p.step), cy: y(p.fid), r: 2.8, fill: css(color) }, svg);
+      el('title', {}, c, `${p.step.toLocaleString()} steps: FID ${p.fid}` + (isNaN(p.kid) ? '' : `, KID×1000 ${p.kid}`));
+    });
+    const last = pts[pts.length - 1];
+    return last;
+  }
+  series(D.spark, '--spark', 1.6);
+  series(D.A, '--c128', 2.2);
+  const lb = series(D.B, '--c256', 2.6);
+  el('circle', { cx: x(lb.step), cy: y(lb.fid), r: 5, fill: 'none', stroke: css('--c256'), 'stroke-width': 1.5 }, svg);
+  el('text', { x: x(lb.step) + 9, y: y(lb.fid) + 4, 'font-size': 12, fill: css('--c256'), 'font-weight': 500 }, svg, lb.fid.toFixed(1));
+  const la = D.A[D.A.length - 1];
+  el('text', { x: x(la.step) - 6, y: y(la.fid) + 16, 'text-anchor': 'end', 'font-size': 12, fill: css('--c128'), 'font-weight': 500 }, svg, la.fid.toFixed(1));
+  const best = D.spark.reduce((a, b) => (b.fid < a.fid ? b : a));
+  el('text', { x: x(best.step), y: y(best.fid) - 9, 'text-anchor': 'middle', 'font-size': 12, fill: css('--spark'), 'font-weight': 500 }, svg, best.fid.toFixed(1));
+})();
+
+// bars
+(function () {
+  const rows = [
+    ...D.sweep.map(s => ({ label: `Spark ${s.size.toUpperCase()} · 100k`, fid: s.best, c: '--spark' })),
+    { label: 'Spark 95M · 1.15M', fid: Math.min(...D.spark.map(p => p.fid)), c: '--spark' },
+    { label: 'Colab 109M · 80k', fid: D.A[0].fid, c: '--c128' },
+    { label: 'Colab 109M · 650k · 128', fid: D.A[D.A.length - 1].fid, c: '--c128' },
+    { label: 'Colab 109M · 820k · 256', fid: D.B[D.B.length - 1].fid, c: '--c256' },
+  ];
+  const svg = document.getElementById('bars');
+  const W = 900, L = 210, R = 60, T = 10, rowH = 34;
+  const H = T + rows.length * rowH + 30;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  const max = 240;
+  const x = f => L + (f / max) * (W - L - R);
+  for (let f = 0; f <= max; f += 40) {
+    el('line', { x1: x(f), x2: x(f), y1: T, y2: H - 26, stroke: css('--rule') }, svg);
+    el('text', { x: x(f), y: H - 10, 'text-anchor': 'middle', 'font-size': 11, fill: css('--muted') }, svg, f);
+  }
+  rows.forEach((r, i) => {
+    const yy = T + i * rowH;
+    el('text', { x: L - 10, y: yy + rowH / 2 + 4, 'text-anchor': 'end', 'font-size': 12, fill: css('--fg') }, svg, r.label);
+    el('rect', { x: L, y: yy + 7, width: x(r.fid) - L, height: rowH - 14, rx: 2, fill: css(r.c) }, svg);
+    el('text', { x: x(r.fid) + 6, y: yy + rowH / 2 + 4, 'font-size': 12, fill: css('--fg') }, svg, r.fid.toFixed(1));
+  });
+})();
+
+// 256 px stage zoom
+(function () {
+  const svg = document.getElementById('zoom');
+  const W = 900, H = 260, L = 52, R = 40, T = 20, B = 36;
+  const x0 = 650000, x1 = 825000, y0 = 41, y1 = 47.5;
+  const x = s => L + (s - x0) / (x1 - x0) * (W - L - R);
+  const y = f => T + (1 - (f - y0) / (y1 - y0)) * (H - T - B);
+  for (let f = 42; f <= 47; f += 1) {
+    el('line', { x1: L, x2: W - R, y1: y(f), y2: y(f), stroke: css('--rule') }, svg);
+    el('text', { x: L - 8, y: y(f) + 4, 'text-anchor': 'end', 'font-size': 11, fill: css('--muted') }, svg, f);
+  }
+  for (let s = 660000; s <= 820000; s += 40000)
+    el('text', { x: x(s), y: H - B + 18, 'text-anchor': 'middle', 'font-size': 11, fill: css('--muted') }, svg, (s / 1000) + 'k');
+  el('rect', { x: x(794000), y: T, width: x(x1) - x(794000), height: H - T - B, fill: css('--mark'), 'fill-opacity': 0.08 }, svg);
+  el('line', { x1: x(794000), x2: x(794000), y1: T, y2: H - B, stroke: css('--mark'), 'stroke-dasharray': '3 3' }, svg);
+  el('text', { x: x(794000) - 6, y: T + 12, 'text-anchor': 'end', 'font-size': 11, fill: css('--mark') }, svg, 'lr 4e-4 → 1e-5');
+  const d = D.B.map((p, i) => (i ? 'L' : 'M') + x(p.step).toFixed(1) + ' ' + y(p.fid).toFixed(1)).join(' ');
+  el('path', { d, fill: 'none', stroke: css('--c256'), 'stroke-width': 2.6, 'stroke-linejoin': 'round' }, svg);
+  D.B.forEach(p => {
+    el('circle', { cx: x(p.step), cy: y(p.fid), r: 3.5, fill: css('--c256') }, svg);
+    el('text', { x: x(p.step), y: y(p.fid) - 9, 'text-anchor': 'middle', 'font-size': 11, fill: css('--fg') }, svg, p.fid.toFixed(1));
+  });
+})();
+
+// samples: one grid at a time
+(function () {
+  const fidAt = s => (D.A.concat(D.B).find(p => p.step === s) || {}).fid;
+  const btns = document.getElementById('stepbtns');
+  const img = document.getElementById('sampleimg');
+  const cap = document.getElementById('samplecap');
+  function show(i) {
+    const im = D.imgs[i];
+    img.src = im.src; img.width = im.w; img.height = im.h; img.alt = `Samples at step ${im.step}`;
+    const fid = fidAt(im.step);
+    cap.innerHTML = `<b>${im.step / 1000}k steps</b><span>${im.res}</span>` + (fid ? `<span>FID ${fid}</span>` : '');
+    [...btns.children].forEach((b, j) => b.setAttribute('aria-selected', String(j === i)));
+  }
+  D.imgs.forEach((im, i) => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.setAttribute('role', 'tab'); b.textContent = `${im.step / 1000}k`;
+    b.addEventListener('click', () => show(i));
+    btns.appendChild(b);
+  });
+  show(D.imgs.length - 1);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Multi-resolution run</title>
+<style>
+  :root { --bg: #090c12; --panel: #121822; --line: rgba(255,255,255,0.09); --fg: #e8ecf3; --fg-2: #a7b0c0; --fg-3: #6b7482;
+          --r64: #3987e5; --r128: #e3a13a; --r256: #e66767; }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 20px 16px 48px; background: var(--bg); color: var(--fg); font: 15px/1.5 system-ui, sans-serif; }
+  main { max-width: 980px; margin: 0 auto; }
+  h1 { font-size: 22px; margin: 0 0 2px; }
+  h2 { font-size: 16px; margin: 28px 0 6px; }
+  p { color: var(--fg-2); margin: 4px 0 10px; max-width: 80ch; }
+  .sub { color: var(--fg-3); font-size: 13px; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 14px 0; }
+  .tile { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; }
+  .tile b { display: block; font: 700 24px/1.15 ui-monospace, Menlo, monospace; }
+  .tile span { color: var(--fg-2); font-size: 12.5px; }
+  .tile i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; }
+  svg { width: 100%; height: 420px; display: block; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12.5px; color: var(--fg-2); margin: 8px 2px 0; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend i { width: 18px; height: 0; border-top: 2px solid; display: inline-block; }
+  .legend i.dash { border-top-style: dashed; }
+  table { border-collapse: collapse; font-size: 13px; margin-top: 6px; }
+  th, td { border-bottom: 1px solid var(--line); padding: 4px 14px 4px 0; text-align: right; font-family: ui-monospace, Menlo, monospace; }
+  th { color: var(--fg-2); font-weight: 600; font-family: inherit; }
+  #tip { position: fixed; pointer-events: none; background: #0c1119; border: 1px solid rgba(255,255,255,0.16); border-radius: 10px; padding: 8px 10px; font-size: 12.5px; z-index: 5; }
+  #tip[hidden] { display: none; }
+  a { color: #7fb2f0; }
+</style>
+</head>
+<body>
+<main>
+<h1>Multi-resolution run: test loss per resolution</h1>
+<p class="sub" id="stamp">loading…</p>
+<p>Test MSE of the one multi-resolution model, measured at each resolution, against training time on the Spark.
+Dashed lines are the single-resolution runs for comparison. Lower is better. This page refreshes every 30 seconds.</p>
+<div class="tiles" id="tiles"></div>
+<div class="panel">
+  <svg id="chart" role="img" aria-label="test MSE per resolution against training hours"></svg>
+  <div class="legend" id="legend"></div>
+</div>
+<h2>All evals</h2>
+<div class="panel" style="overflow-x:auto"><table id="table"></table></div>
+<p style="margin-top:22px"><a href="/">Back to train-viz</a></p>
+</main>
+<div id="tip" hidden></div>
+<script>
+const COLORS = { '64': '#3987e5', '128': '#e3a13a', '256': '#e66767' };
+const NS = 'http://www.w3.org/2000/svg';
+const tip = document.getElementById('tip');
+const fmt = (v) => v == null ? '–' : v.toFixed(v < 0.01 ? 4 : 3);
+const hm = (h) => `${Math.floor(h)}:${String(Math.round((h % 1) * 60)).padStart(2, '0')}`;
+function el(tag, attrs, text) { const n = document.createElementNS(NS, tag); for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v); if (text != null) n.textContent = text; return n; }
+
+function draw(d) {
+  const run = d.runs.at(-1);
+  if (!run) { document.getElementById('stamp').textContent = 'No multi-resolution run with data yet.'; return; }
+  document.getElementById('stamp').textContent = `${run.name} · ${run.steps.toLocaleString()} optimizer steps · ${hm(run.hours)} h of training · data written ${d.written}`;
+  const svg = document.getElementById('chart'); svg.replaceChildren();
+  const W = svg.clientWidth || 940, H = 420, pad = { l: 56, r: 16, t: 12, b: 34 };
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  const xmax = Math.max(run.hours * 1.6, 2);
+  const all = Object.values(run.curves).flat().map((p) => p[1]);
+  const ymin = Math.min(0.003, ...all) * 0.9, ymax = 0.13;
+  const sx = (h) => pad.l + (h / xmax) * (W - pad.l - pad.r);
+  const sy = (v) => pad.t + (Math.log(ymax / v) / Math.log(ymax / ymin)) * (H - pad.t - pad.b);
+  for (const v of [0.1, 0.05, 0.02, 0.01, 0.005, 0.003]) if (v >= ymin) {
+    svg.append(el('line', { x1: pad.l, x2: W - pad.r, y1: sy(v), y2: sy(v), stroke: 'rgba(255,255,255,0.07)' }));
+    svg.append(el('text', { x: pad.l - 8, y: sy(v) + 4, 'text-anchor': 'end', fill: '#6b7482', 'font-size': 11 }, String(v)));
+  }
+  const xstep = xmax > 8 ? 2 : xmax > 4 ? 1 : 0.5;
+  for (let h = 0; h <= xmax; h += xstep) svg.append(el('text', { x: sx(h), y: H - 10, 'text-anchor': 'middle', fill: '#6b7482', 'font-size': 11 }, `${h} h`));
+  const path = (pts) => pts.filter((p) => p[0] <= xmax && p[1] >= ymin).map((p, i) => `${i ? 'L' : 'M'}${sx(p[0]).toFixed(1)},${sy(p[1]).toFixed(1)}`).join('');
+  for (const ref of d.refs) svg.append(el('path', { d: path(ref.curve), fill: 'none', stroke: COLORS[ref.res], 'stroke-width': 1.5, 'stroke-dasharray': ref.faint ? '2 5' : '6 4', opacity: ref.faint ? 0.55 : 0.8 }));
+  if (d.upsampled_128_at_256 >= ymin) {
+    const y = sy(d.upsampled_128_at_256);
+    svg.append(el('line', { x1: pad.l, x2: W - pad.r, y1: y, y2: y, stroke: COLORS['256'], 'stroke-width': 1, 'stroke-dasharray': '1 4', opacity: 0.7 }));
+  }
+  for (const [res, pts] of Object.entries(run.curves)) {
+    svg.append(el('path', { d: path(pts), fill: 'none', stroke: COLORS[res], 'stroke-width': 2.2, 'stroke-linejoin': 'round' }));
+    for (const p of pts) {
+      const c = el('circle', { cx: sx(p[0]), cy: sy(p[1]), r: 5, fill: COLORS[res], stroke: '#121822', 'stroke-width': 2 });
+      c.addEventListener('pointermove', (e) => { tip.hidden = false; tip.innerHTML = `${res} px · ${hm(p[0])} h<br><b>${fmt(p[1])}</b>`; tip.style.left = Math.min(innerWidth - 140, e.clientX + 14) + 'px'; tip.style.top = (e.clientY + 14) + 'px'; });
+      c.addEventListener('pointerleave', () => { tip.hidden = true; });
+      svg.append(c);
+    }
+    const last = pts.at(-1);
+    if (last) svg.append(el('text', { x: sx(last[0]) + 8, y: sy(last[1]) + 4, fill: '#e8ecf3', 'font-size': 12 }, `${res} px`));
+  }
+  const tiles = document.getElementById('tiles'); tiles.replaceChildren();
+  for (const res of ['64', '128', '256']) {
+    const last = run.curves[res].at(-1), prev = run.curves[res].at(-2);
+    const t = document.createElement('div'); t.className = 'tile';
+    t.innerHTML = `<b>${fmt(last?.[1])}</b><span><i style="background:${COLORS[res]}"></i>test MSE at ${res} px${prev ? ` · was ${fmt(prev[1])}` : ''}</span>`;
+    tiles.append(t);
+  }
+  const lg = document.getElementById('legend');
+  lg.innerHTML = ['64', '128', '256'].map((r) => `<span><i style="border-color:${COLORS[r]}"></i>multi-resolution model at ${r} px</span>`).join('')
+    + d.refs.map((r) => `<span><i class="dash" style="border-color:${COLORS[r.res]};opacity:${r.faint ? 0.55 : 0.8}"></i>${r.name}</span>`).join('')
+    + `<span><i class="dash" style="border-color:${COLORS['256']};opacity:.7"></i>128 px model upsampled to 256 px (0.0060)</span>`;
+  const rows = run.curves['256'].map((p, i) => [p[0], run.curves['64'][i]?.[1], run.curves['128'][i]?.[1], p[1]]);
+  document.getElementById('table').innerHTML = '<tr><th>training time</th><th>64 px</th><th>128 px</th><th>256 px</th></tr>'
+    + rows.map((r) => `<tr><td>${hm(r[0])}</td><td>${fmt(r[1])}</td><td>${fmt(r[2])}</td><td>${fmt(r[3])}</td></tr>`).reverse().join('');
+}
+async function load() {
+  try { draw(await (await fetch('/multires_data.json', { cache: 'no-store' })).json()); }
+  catch (e) { document.getElementById('stamp').textContent = 'Could not load the data: ' + e.message; }
+}
+load(); setInterval(load, 30000); addEventListener('resize', load);
+</script>
+</body>
+</html>

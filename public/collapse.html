@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Collapse check</title>
+<style>
+  body { margin: 0; padding: 20px 16px 40px; background: #090c12; color: #e8ecf3; font: 15px/1.5 system-ui, sans-serif; }
+  main { max-width: 860px; margin: 0 auto; }
+  h1 { font-size: 20px; margin: 0 0 6px; }
+  p, li { color: #a7b0c0; }
+  code { color: #e8ecf3; }
+  button { font: inherit; font-weight: 600; padding: 10px 20px; border-radius: 999px; border: 0; background: hsl(192 86% 64%); color: #06222a; cursor: pointer; min-height: 44px; }
+  .msg { margin-left: 12px; color: hsl(150 60% 55%); }
+  pre { margin-top: 12px; padding: 14px; background: #0f141d; border: 1px solid rgba(255,255,255,0.13); border-radius: 12px; overflow-x: auto; font: 12.5px/1.45 ui-monospace, Menlo, Consolas, monospace; }
+  table { border-collapse: collapse; margin-top: 10px; }
+  td, th { border: 1px solid rgba(255,255,255,0.13); padding: 6px 10px; text-align: left; color: #c9d1de; }
+  a { color: hsl(192 86% 64%); }
+</style>
+</head>
+<body>
+<main>
+<h1>Collapse check for the 3090 notebook run</h1>
+<ol>
+  <li>Stop the training loop (interrupt the kernel).</li>
+  <li>Press Copy, paste into a new cell, and run it.</li>
+  <li>Send me the printed line.</li>
+</ol>
+<button>Copy</button><span class="msg" role="status"></span>
+<pre>import torch
+
+encoder.eval()
+decoder.eval()
+x, _ = next(iter(test_dataloader))
+x = x[:64].to(device)
+with torch.no_grad():
+    z = encoder(x)
+    r = decoder(z)
+    r_swap = decoder(z.roll(1, dims=0))
+recon_div = r.std(0).mean() / x.std(0).mean()
+z_use = (r - r_swap).pow(2).mean() / r.var(0).mean()
+z_std = z.std(0).mean()
+print(f"recon_div {recon_div:.3f} | z_use {z_use:.3f}"
+      f" | z_std {z_std:.3f}")
+_ = encoder.train()
+_ = decoder.train()
+</pre>
+<table>
+  <tr><th>Value</th><th>Healthy</th><th>Decoder ignores z</th></tr>
+  <tr><td><code>recon_div</code></td><td>0.8 or more</td><td>near 0</td></tr>
+  <tr><td><code>z_use</code></td><td>near 2</td><td>near 0</td></tr>
+  <tr><td><code>z_std</code></td><td>near 1</td><td>near 1 (z can stay healthy)</td></tr>
+</table>
+<p><a href="/">Back to train-viz</a></p>
+</main>
+<script>
+  const pre = document.querySelector('pre');
+  const msg = document.querySelector('.msg');
+  document.querySelector('button').addEventListener('click', async () => {
+    const code = pre.textContent;
+    try { await navigator.clipboard.writeText(code); msg.textContent = 'Copied ' + (code.split('\n').length - 1) + ' lines'; }
+    catch (e) {
+      const r = document.createRange(); r.selectNodeContents(pre);
+      const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+      msg.textContent = 'Selected: press Ctrl+C (or Cmd+C) to copy';
+    }
+  });
+</script>
+</body>
+</html>
